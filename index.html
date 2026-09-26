@@ -7,12 +7,10 @@
 <!--
   This tool works completely on its own — open it and it just works.
   Firebase (accounts + cross-device usage sync + shared feedback) is OPTIONAL.
-  To turn it on:
-  1. Create a project at https://console.firebase.google.com
-  2. Enable Authentication > Sign-in method > Google
-  3. Enable Firestore Database
-  4. Paste your web app config into `firebaseConfig` near the bottom
-  5. Firestore rules:
+  Google sign-in ONLY works when the page is served over http/https (not opened
+  as a local file), and only from a domain listed under Firebase Console >
+  Authentication > Settings > Authorized domains.
+  Firestore rules:
      rules_version = '2';
      service cloud.firestore {
        match /databases/{database}/documents {
@@ -20,9 +18,8 @@
          match /feedback/{doc} { allow create: if request.auth != null; allow read: if true; }
        }
      }
-  6. To grant Pro after a real payment, set users/{uid}.plan = "pro" from your
-     payment provider's server-side webhook — never from the browser.
-  Until you do all that, everything still works using only the browser's storage.
+  To grant Pro after a real payment, set users/{uid}.plan = "pro" from your
+  payment provider's server-side webhook — never from the browser.
 -->
 <style>
   :root{ --bg:#f4f5f3; --panel:#ffffff; --ink:#15171a; --sub:#5c6167; --line:#dfe2df; --accent:#ff3d68; --accent-ink:#ffffff; }
@@ -36,10 +33,12 @@
   .brand span{ font-size:19px; font-weight:700; letter-spacing:-0.02em; }
   .headerRight{ display:flex; align-items:center; gap:12px; font-size:13px; color:var(--sub); }
   #signInBtn, #signOutBtn{ font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:8px 14px; font-weight:600; font-size:13px; }
+  #authError{ color:var(--accent); font-size:12px; display:none; }
   main{ max-width:960px; margin:0 auto; padding:36px 22px 80px; }
   h1{ font-size:clamp(26px,4vw,40px); line-height:1.1; letter-spacing:-0.02em; margin:0 0 10px; }
   .lede{ color:var(--sub); font-size:16px; max-width:58ch; margin:0 0 28px; }
   .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; }
+  .panel h3{ margin-top:0; }
   .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; }
   .drop:hover, .drop.drag{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
   .drop p{ margin:0; color:var(--sub); font-size:14px; }
@@ -52,15 +51,17 @@
   .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
   .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
   canvas{ display:block; width:100%; height:auto; }
+  #stageCanvas{ cursor:grab; touch-action:none; }
+  #stageCanvas:active{ cursor:grabbing; }
   .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:16px; }
   .control{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); min-width:150px; }
   .checkctrl{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sub); }
   input[type=range]{ accent-color:var(--accent); }
-  select, input[type=color]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+  select, input[type=color], input[type=text]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
   .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; }
   button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
-  #downloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
+  #downloadBtn, #stageDownloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
   button.good{ border-color:#1a8a5f; color:#1a8a5f; }
   button.meh{ border-color:#c98a12; color:#c98a12; }
   button.good.active{ background:#1a8a5f; color:#fff; }
@@ -69,6 +70,8 @@
   .note{ font-size:13px; color:var(--accent); margin-top:10px; }
   .feedbackRow{ display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
   .feedbackRow span{ font-size:13px; color:var(--sub); }
+  .emojiRow{ display:flex; gap:6px; flex-wrap:wrap; }
+  .emojiRow button{ font-size:20px; padding:6px 10px; }
   .plans{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px; }
   @media (max-width:640px){ .plans{ grid-template-columns:1fr; } }
   .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); }
@@ -87,6 +90,7 @@
   <div class="brand"><span class="mark"></span><span>Cutout</span></div>
   <div class="headerRight">
     <span id="quotaLabel"></span>
+    <span id="authError"></span>
     <button id="signInBtn" style="display:none;">Sign in with Google</button>
     <button id="signOutBtn" style="display:none;">Sign out</button>
   </div>
@@ -146,8 +150,52 @@
     </div>
   </div>
 
+  <div class="panel workspace" id="composePanel">
+    <h3>Add text &amp; stickers</h3>
+    <p class="lede" style="margin-bottom:16px;">Drag the cutout, text, and stickers anywhere on the canvas below.</p>
+    <div class="frame checker" style="margin-bottom:16px; max-width:480px;">
+      <canvas id="stageCanvas" width="480" height="480"></canvas>
+    </div>
+    <div class="controls">
+      <div class="control">Text
+        <input type="text" id="textInput" placeholder="Type something">
+      </div>
+      <div class="control">Text color
+        <input type="color" id="textColor" value="#111111">
+      </div>
+      <div class="control">Text size
+        <input type="range" id="textSize" min="14" max="64" value="30">
+      </div>
+      <div class="control">Stage background
+        <select id="stageBgMode">
+          <option value="transparent">Transparent</option>
+          <option value="color">Solid color</option>
+        </select>
+      </div>
+      <div class="control" id="stageColorWrap" style="display:none;">Color
+        <input type="color" id="stageColor" value="#ffffff">
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <button id="addTextBtn">Add text</button>
+      <button id="removeLayerBtn">Remove last dragged</button>
+      <button id="clearLayersBtn">Clear stickers &amp; text</button>
+    </div>
+    <div class="emojiRow" style="margin-bottom:16px;">
+      <button data-emoji="😀">😀</button>
+      <button data-emoji="😎">😎</button>
+      <button data-emoji="❤️">❤️</button>
+      <button data-emoji="🔥">🔥</button>
+      <button data-emoji="⭐">⭐</button>
+      <button data-emoji="👍">👍</button>
+      <button data-emoji="🎉">🎉</button>
+      <button data-emoji="✨">✨</button>
+    </div>
+    <button class="primary" id="stageDownloadBtn">Download composed image</button>
+  </div>
+
   <div class="panel">
-    <h3 style="margin-top:0;">Plans</h3>
+    <h3>Plans</h3>
     <div class="plans">
       <div class="plan">
         <span class="badge">Free</span>
@@ -156,7 +204,7 @@
         <ul>
           <li>3 downloads per day</li>
           <li>All background modes</li>
-          <li>Auto-crop included</li>
+          <li>Auto-crop, text &amp; stickers included</li>
         </ul>
         <button disabled>Current plan</button>
       </div>
@@ -189,9 +237,7 @@
     return u;
   }
   function saveLocalUsage(u){ localStorage.setItem('cutout_usage', JSON.stringify(u)); }
-
   function isPro(){ return window.__cutoutProOverride === true; }
-
   function updateQuotaLabel(){
     const el = document.getElementById('quotaLabel');
     if(isPro()){ el.textContent = 'Pro — unlimited'; return; }
@@ -201,24 +247,19 @@
   window.__cutoutUpdateQuota = updateQuotaLabel;
   updateQuotaLabel();
 
-  // ---- feedback storage (local always; Firebase layer syncs it if configured) ----
   function loadFeedback(){ return JSON.parse(localStorage.getItem('cutout_feedback') || '[]'); }
-  function saveFeedback(list){
-    localStorage.setItem('cutout_feedback', JSON.stringify(list.slice(-200)));
-  }
+  function saveFeedback(list){ localStorage.setItem('cutout_feedback', JSON.stringify(list.slice(-200))); }
   function applySmartDefaults(){
     const list = loadFeedback().filter(f => f.rating === 'perfect').slice(-50);
     if(list.length === 0) return;
-    const t = Math.round(list.reduce((s,f)=>s+f.threshold,0) / list.length);
-    const f = Math.round(list.reduce((s,fb)=>s+fb.feather,0) / list.length);
-    thresholdEl.value = t;
-    featherEl.value = f;
+    thresholdEl.value = Math.round(list.reduce((s,f)=>s+f.threshold,0) / list.length);
+    featherEl.value = Math.round(list.reduce((s,f)=>s+f.feather,0) / list.length);
   }
 
-  // ---- elements ----
   const drop = document.getElementById('drop');
   const fileInput = document.getElementById('fileInput');
   const workspace = document.getElementById('workspace');
+  const composePanel = document.getElementById('composePanel');
   const srcCanvas = document.getElementById('srcCanvas');
   const outCanvas = document.getElementById('outCanvas');
   const thresholdEl = document.getElementById('threshold');
@@ -254,6 +295,7 @@
       const img = new Image();
       img.onload = () => {
         currentImg = img;
+        drop.style.display = 'none';
         drawWorkspace(img);
         feedbackThanks.style.display = 'none';
         perfectBtn.classList.remove('active');
@@ -266,6 +308,7 @@
 
   function drawWorkspace(img){
     workspace.classList.add('active');
+    composePanel.classList.add('active');
     const maxW = 480;
     const scale = Math.min(1, maxW / img.width);
     const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
@@ -274,14 +317,12 @@
     process();
   }
 
-  // ---- flood-fill background detection + box-blur feather ----
   function computeMask(data, w, h, threshold){
     let br=0,bg=0,bb=0,n=0;
     for(let x=0;x<w;x++){ [0,h-1].forEach(y=>{ const i=(y*w+x)*4; br+=data[i]; bg+=data[i+1]; bb+=data[i+2]; n++; }); }
     for(let y=0;y<h;y++){ [0,w-1].forEach(x=>{ const i=(y*w+x)*4; br+=data[i]; bg+=data[i+1]; bb+=data[i+2]; n++; }); }
     br/=n; bg/=n; bb/=n;
-
-    const mask = new Uint8Array(w*h); // 1 = background
+    const mask = new Uint8Array(w*h);
     const visited = new Uint8Array(w*h);
     const stack = [];
     function seed(x,y){
@@ -326,6 +367,13 @@
     return out;
   }
 
+  function hexToRgb(hex){
+    const v = parseInt(hex.replace('#',''), 16);
+    return [(v>>16)&255, (v>>8)&255, v&255];
+  }
+
+  let lastAlpha=null, lastData=null, lastW=0, lastH=0, lastBBox=null;
+
   function process(){
     if(!currentImg) return;
     const w = srcCanvas.width, h = srcCanvas.height;
@@ -337,16 +385,10 @@
     const threshold = parseInt(thresholdEl.value, 10);
     const feather = parseInt(featherEl.value, 10);
     const mask = computeMask(data, w, h, threshold);
-
     let alpha = new Float32Array(w*h);
     for(let p=0;p<w*h;p++) alpha[p] = mask[p] ? 0 : 255;
     alpha = boxBlur(alpha, w, h, feather);
 
-    const out = new Uint8ClampedArray(data.length);
-    out.set(data);
-    for(let p=0;p<w*h;p++) out[p*4+3] = alpha[p];
-
-    // bounding box of subject (alpha above a small floor)
     let minX=w, minY=h, maxX=-1, maxY=-1;
     for(let y=0;y<h;y++) for(let x=0;x<w;x++){
       if(alpha[y*w+x] > 20){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
@@ -356,35 +398,56 @@
     minX = Math.max(0, minX-pad); minY = Math.max(0, minY-pad);
     maxX = Math.min(w-1, maxX+pad); maxY = Math.min(h-1, maxY+pad);
 
+    lastAlpha = alpha; lastData = data; lastW = w; lastH = h;
+    lastBBox = { minX, minY, maxX, maxY };
+
     const cropped = autoCropEl.checked;
     const outW = cropped ? (maxX-minX+1) : w;
     const outH = cropped ? (maxY-minY+1) : h;
+    const offX = cropped ? minX : 0;
+    const offY = cropped ? minY : 0;
     outCanvas.width = outW; outCanvas.height = outH;
 
     const mode = bgModeEl.value;
+    let blurredBg = null;
     if(mode === 'blur'){
-      octx.filter = 'blur(10px)';
-      octx.drawImage(srcCanvas, cropped?minX:0, cropped?minY:0, outW, outH, 0, 0, outW, outH);
-      octx.filter = 'none';
-    } else if(mode === 'color'){
-      octx.fillStyle = bgColorEl.value;
-      octx.fillRect(0,0,outW,outH);
-    } else {
-      octx.clearRect(0,0,outW,outH);
+      const tmp = document.createElement('canvas');
+      tmp.width = outW; tmp.height = outH;
+      const tctx = tmp.getContext('2d');
+      tctx.filter = 'blur(10px)';
+      tctx.drawImage(srcCanvas, offX, offY, outW, outH, 0, 0, outW, outH);
+      blurredBg = tctx.getImageData(0,0,outW,outH).data;
     }
+    let bgRgb = mode === 'color' ? hexToRgb(bgColorEl.value) : null;
 
-    const full = new ImageData(out, w, h);
-    const tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
-    tmp.getContext('2d').putImageData(full, 0, 0);
-    octx.drawImage(tmp, cropped?minX:0, cropped?minY:0, outW, outH, 0, 0, outW, outH);
+    const outImg = octx.createImageData(outW, outH);
+    const od = outImg.data;
+    for(let y=0;y<outH;y++){
+      for(let x=0;x<outW;x++){
+        const sx = x+offX, sy = y+offY;
+        const si = (sy*w+sx);
+        const a = alpha[si] / 255;
+        const di = (y*outW+x)*4;
+        const fr = data[si*4], fg = data[si*4+1], fb = data[si*4+2];
+        if(mode === 'transparent'){
+          od[di]=fr; od[di+1]=fg; od[di+2]=fb; od[di+3]=Math.round(a*255);
+        } else {
+          let br, bgc, bb;
+          if(mode === 'color'){ br=bgRgb[0]; bgc=bgRgb[1]; bb=bgRgb[2]; }
+          else { br=blurredBg[di]; bgc=blurredBg[di+1]; bb=blurredBg[di+2]; }
+          od[di]   = Math.round(fr*a + br*(1-a));
+          od[di+1] = Math.round(fg*a + bgc*(1-a));
+          od[di+2] = Math.round(fb*a + bb*(1-a));
+          od[di+3] = 255;
+        }
+      }
+    }
+    octx.putImageData(outImg, 0, 0);
+    updateStageSubject();
   }
 
   downloadBtn.addEventListener('click', () => {
-    if(!isPro() && localUsage().count >= DAILY_LIMIT){
-      lockedNote.style.display = 'block';
-      return;
-    }
+    if(!isPro() && localUsage().count >= DAILY_LIMIT){ lockedNote.style.display = 'block'; return; }
     lockedNote.style.display = 'none';
     if(!isPro()){ const u = localUsage(); u.count += 1; saveLocalUsage(u); }
     updateQuotaLabel();
@@ -397,8 +460,12 @@
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     workspace.classList.remove('active');
+    composePanel.classList.remove('active');
+    drop.style.display = '';
     fileInput.value = '';
     currentImg = null;
+    stageLayers.length = 0;
+    renderStage();
   });
 
   function sendFeedback(rating, btn, otherBtn){
@@ -417,13 +484,162 @@
   document.getElementById('upgradeBtn').addEventListener('click', () => {
     alert('Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.');
   });
+
+  // ============ COMPOSE STAGE: draggable subject + text + emoji ============
+  const stageCanvas = document.getElementById('stageCanvas');
+  const sctx2 = stageCanvas.getContext('2d');
+  const stageBgModeEl = document.getElementById('stageBgMode');
+  const stageColorEl = document.getElementById('stageColor');
+  const stageColorWrap = document.getElementById('stageColorWrap');
+  const textInput = document.getElementById('textInput');
+  const textColorEl = document.getElementById('textColor');
+  const textSizeEl = document.getElementById('textSize');
+  let stageLayers = []; // {type:'subject'|'text'|'emoji', x, y, ...}
+  let subjectImg = null;
+  let dragging = null, dragOffX = 0, dragOffY = 0;
+
+  stageBgModeEl.addEventListener('change', () => {
+    stageColorWrap.style.display = stageBgModeEl.value === 'color' ? 'flex' : 'none';
+    renderStage();
+  });
+  stageColorEl.addEventListener('input', renderStage);
+
+  function updateStageSubject(){
+    if(!lastAlpha) return;
+    const { minX, minY, maxX, maxY } = lastBBox;
+    const sw = maxX-minX+1, sh = maxY-minY+1;
+    const tmp = document.createElement('canvas');
+    tmp.width = sw; tmp.height = sh;
+    const tctx = tmp.getContext('2d');
+    const img = tctx.createImageData(sw, sh);
+    const d = img.data;
+    for(let y=0;y<sh;y++){
+      for(let x=0;x<sw;x++){
+        const si = (y+minY)*lastW + (x+minX);
+        const di = (y*sw+x)*4;
+        d[di]=lastData[si*4]; d[di+1]=lastData[si*4+1]; d[di+2]=lastData[si*4+2];
+        d[di+3]=Math.round(lastAlpha[si]);
+      }
+    }
+    tctx.putImageData(img, 0, 0);
+    const dataUrl = tmp.toDataURL('image/png');
+    const im = new Image();
+    im.onload = () => {
+      subjectImg = im;
+      const existing = stageLayers.find(l => l.type === 'subject');
+      const scale = Math.min(1, (stageCanvas.width*0.6)/im.width, (stageCanvas.height*0.6)/im.height);
+      const dw = im.width*scale, dh = im.height*scale;
+      if(existing){ existing.w = dw; existing.h = dh; }
+      else { stageLayers.unshift({ type:'subject', x: stageCanvas.width/2, y: stageCanvas.height/2, w: dw, h: dh }); }
+      renderStage();
+    };
+    im.src = dataUrl;
+  }
+
+  function renderStage(){
+    sctx2.clearRect(0,0,stageCanvas.width,stageCanvas.height);
+    if(stageBgModeEl.value === 'color'){
+      sctx2.fillStyle = stageColorEl.value;
+      sctx2.fillRect(0,0,stageCanvas.width,stageCanvas.height);
+    }
+    stageLayers.forEach(l => {
+      if(l.type === 'subject' && subjectImg){
+        sctx2.drawImage(subjectImg, l.x-l.w/2, l.y-l.h/2, l.w, l.h);
+      } else if(l.type === 'text'){
+        sctx2.font = 'bold ' + l.size + 'px -apple-system, sans-serif';
+        sctx2.fillStyle = l.color;
+        sctx2.textBaseline = 'middle';
+        sctx2.textAlign = 'center';
+        sctx2.fillText(l.text, l.x, l.y);
+      } else if(l.type === 'emoji'){
+        sctx2.font = l.size + 'px serif';
+        sctx2.textBaseline = 'middle';
+        sctx2.textAlign = 'center';
+        sctx2.fillText(l.char, l.x, l.y);
+      }
+    });
+  }
+
+  function layerBounds(l){
+    if(l.type === 'subject') return { x:l.x-l.w/2, y:l.y-l.h/2, w:l.w, h:l.h };
+    if(l.type === 'text'){
+      sctx2.font = 'bold ' + l.size + 'px -apple-system, sans-serif';
+      const w = sctx2.measureText(l.text).width;
+      return { x:l.x-w/2, y:l.y-l.size/2, w, h:l.size };
+    }
+    return { x:l.x-l.size/2, y:l.y-l.size/2, w:l.size, h:l.size };
+  }
+
+  function stagePos(e){
+    const rect = stageCanvas.getBoundingClientRect();
+    const scaleX = stageCanvas.width / rect.width, scaleY = stageCanvas.height / rect.height;
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: cx*scaleX, y: cy*scaleY };
+  }
+
+  function onDown(e){
+    const p = stagePos(e);
+    for(let i=stageLayers.length-1;i>=0;i--){
+      const b = layerBounds(stageLayers[i]);
+      if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
+        dragging = stageLayers[i];
+        dragOffX = p.x - dragging.x; dragOffY = p.y - dragging.y;
+        stageLayers.splice(i,1); stageLayers.push(dragging);
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+  function onMove(e){
+    if(!dragging) return;
+    const p = stagePos(e);
+    dragging.x = p.x - dragOffX; dragging.y = p.y - dragOffY;
+    renderStage();
+    e.preventDefault();
+  }
+  function onUp(){ dragging = null; }
+  stageCanvas.addEventListener('mousedown', onDown);
+  stageCanvas.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  stageCanvas.addEventListener('touchstart', onDown, { passive:false });
+  stageCanvas.addEventListener('touchmove', onMove, { passive:false });
+  stageCanvas.addEventListener('touchend', onUp);
+
+  document.getElementById('addTextBtn').addEventListener('click', () => {
+    const text = textInput.value.trim();
+    if(!text) return;
+    stageLayers.push({ type:'text', text, x: stageCanvas.width/2, y: stageCanvas.height*0.2, size: parseInt(textSizeEl.value,10), color: textColorEl.value });
+    textInput.value = '';
+    renderStage();
+  });
+  document.querySelectorAll('.emojiRow button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      stageLayers.push({ type:'emoji', char: btn.dataset.emoji, x: stageCanvas.width/2, y: stageCanvas.height*0.8, size: 48 });
+      renderStage();
+    });
+  });
+  document.getElementById('removeLayerBtn').addEventListener('click', () => {
+    for(let i=stageLayers.length-1;i>=0;i--){
+      if(stageLayers[i].type !== 'subject'){ stageLayers.splice(i,1); break; }
+    }
+    renderStage();
+  });
+  document.getElementById('clearLayersBtn').addEventListener('click', () => {
+    stageLayers = stageLayers.filter(l => l.type === 'subject');
+    renderStage();
+  });
+  document.getElementById('stageDownloadBtn').addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = 'cutout-composed.png';
+    link.href = stageCanvas.toDataURL('image/png');
+    link.click();
+  });
 })();
 </script>
 
 <script type="module">
 // ============ OPTIONAL FIREBASE LAYER — enhances the tool, never required ============
-// Runs independently of the core script above. If this fails to load (no config yet,
-// or offline), the tool above keeps working exactly as before.
 try{
   const firebaseConfig = {
     apiKey: "AIzaSyBQZcB_X3DOoW2gu9THYWDqooKjwZjjZXk",
@@ -436,7 +652,7 @@ try{
   if(firebaseConfig.apiKey === "YOUR_API_KEY") throw new Error('Firebase not configured yet — skipping optional layer.');
 
   const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js");
-  const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } =
+  const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } =
     await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js");
   const { getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp } =
     await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
@@ -450,9 +666,33 @@ try{
 
   const signInBtn = document.getElementById('signInBtn');
   const signOutBtn = document.getElementById('signOutBtn');
+  const authError = document.getElementById('authError');
   signInBtn.style.display = 'inline-block';
-  signInBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(console.error));
+
+  function showAuthError(msg){
+    authError.textContent = msg;
+    authError.style.display = 'inline';
+    setTimeout(() => { authError.style.display = 'none'; }, 8000);
+  }
+
+  signInBtn.addEventListener('click', async () => {
+    try{
+      await signInWithPopup(auth, provider);
+    }catch(err){
+      console.error('Sign-in error:', err.code, err.message);
+      if(err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request'){
+        try{ await signInWithRedirect(auth, provider); }
+        catch(err2){ showAuthError('Sign-in failed: ' + err2.code); }
+      } else if(err.code === 'auth/unauthorized-domain'){
+        showAuthError('This domain is not authorized in Firebase — add it under Authentication > Settings > Authorized domains.');
+      } else if(err.code !== 'auth/popup-closed-by-user'){
+        showAuthError('Sign-in failed: ' + err.code);
+      }
+    }
+  });
   signOutBtn.addEventListener('click', () => signOut(auth));
+
+  getRedirectResult(auth).catch(err => console.warn('Redirect sign-in issue:', err));
 
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
