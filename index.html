@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cutout — background remover</title>
 <!--
-  This tool works completely on its own — open it and it just works.
+  This tool works completely on its own, open it and it just works.
   Firebase (accounts + cross-device usage sync + shared feedback) is OPTIONAL.
   Google sign-in ONLY works when the page is served over http/https (not opened
   as a local file), and only from a domain listed under Firebase Console >
@@ -19,7 +19,7 @@
        }
      }
   To grant Pro after a real payment, set users/{uid}.plan = "pro" from your
-  payment provider's server-side webhook — never from the browser.
+  payment provider's server-side webhook, never from the browser.
 -->
 <style>
   :root{ --bg:#f4f5f3; --panel:#ffffff; --ink:#15171a; --sub:#5c6167; --line:#dfe2df; --accent:#ff3d68; --accent-ink:#ffffff; --railbg:#f0f1ee; }
@@ -39,18 +39,28 @@
   .lede{ color:var(--sub); font-size:16px; max-width:58ch; margin:0 0 28px; }
   .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
   .panel h3{ margin-top:0; }
-  .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; }
+  .reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in-view{ opacity:1; transform:translateY(0); }
+  .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s, transform .15s; }
+  .drop:hover{ transform:translateY(-2px); }
   .drop:hover, .drop.drag{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
   .drop p{ margin:0; color:var(--sub); font-size:14px; }
   .drop strong{ color:var(--ink); font-size:16px; }
   input[type=file]{ display:none; }
-  .workspace{ display:none; } .workspace.active{ display:block; }
-  .canvases{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
-  @media (max-width:640px){ .canvases{ grid-template-columns:1fr; } }
-  .frame{ border:1px solid var(--line); border-radius:10px; overflow:hidden; position:relative; }
-  .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
-  .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+  .workspace{ display:none; } .workspace.active{ display:block; animation:fadeIn .4s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  .compareWrap{ position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:10px; }
+  .compareBase{ position:relative; width:100%; }
+  .compareBase.checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+  .compareOverlay{ position:absolute; top:0; left:0; width:50%; height:100%; overflow:hidden; border-right:2px solid #fff; }
+  .compareBase canvas{ display:block; width:100%; height:auto; }
+  .compareOverlay canvas{ display:block; width:auto; height:100%; }
+  .compareDivider{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:#fff; box-shadow:0 0 6px rgba(0,0,0,.35); pointer-events:none; }
+  .wideRange{ width:100%; accent-color:var(--accent); margin:4px 0 16px; }
   canvas{ display:block; width:100%; height:auto; }
+  #stageCanvas{ cursor:grab; touch-action:none; }
+  #stageCanvas:active{ cursor:grabbing; }
   .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:8px; }
   .control{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); min-width:150px; }
   .checkctrl{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sub); }
@@ -62,6 +72,7 @@
   button:hover{ box-shadow:0 2px 8px rgba(0,0,0,.08); }
   button:active{ transform:scale(0.98); }
   button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  button.active{ background:var(--accent); color:#fff; }
   #downloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
   button.good{ border-color:#1a8a5f; color:#1a8a5f; }
   button.meh{ border-color:#c98a12; color:#c98a12; }
@@ -73,8 +84,10 @@
   .feedbackRow span{ font-size:13px; color:var(--sub); }
   .plans{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:6px; align-items:stretch; }
   @media (max-width:760px){ .plans{ grid-template-columns:1fr; } }
-  .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); display:flex; flex-direction:column; }
+  .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); display:flex; flex-direction:column; transition:transform .15s; }
+  .plan:hover{ transform:translateY(-4px); }
   .plan.pro{ border-color:var(--accent); border-width:2px; transform:scale(1.03); box-shadow:0 6px 22px rgba(255,61,104,.15); z-index:1; }
+  .plan.pro:hover{ transform:scale(1.03) translateY(-4px); }
   .plan.pro .ribbon{ align-self:center; background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 12px; border-radius:20px; margin-bottom:8px; }
   .plan h3{ margin:0 0 4px; font-size:16px; }
   .plan .price{ font-size:26px; font-weight:700; margin:6px 0 12px; }
@@ -83,7 +96,6 @@
   .badge{ display:inline-block; font-size:11px; color:var(--accent); border:1px solid var(--accent); border-radius:20px; padding:2px 9px; margin-bottom:6px; }
   footer{ text-align:center; color:var(--sub); font-size:12px; padding:20px; }
 
-  /* ---- editor ---- */
   #editorPanel{ padding:0; overflow:hidden; position:relative; border-radius:20px; box-shadow:0 8px 30px rgba(0,0,0,.08); }
   .editorTop{ display:flex; align-items:center; justify-content:space-between; padding:18px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
   .editorTop span{ font-weight:700; font-size:15px; letter-spacing:-0.01em; }
@@ -103,29 +115,28 @@
   .emojiGrid button{ font-size:19px; padding:10px 0; border-radius:10px; background:var(--panel); }
   .emojiGrid button:hover{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
   .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; background:var(--railbg); }
-  #stageCanvas{ cursor:grab; touch-action:none; max-width:100%; border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.16), 0 0 0 1px var(--line); }
-  #stageCanvas:active{ cursor:grabbing; }
+  #stageCanvas{ max-width:100%; border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.16), 0 0 0 1px var(--line); }
   .canvasHint{ font-size:12px; color:var(--sub); margin-top:14px; }
   #deleteSelectedBtn{ position:absolute; top:20px; right:20px; display:none; font-size:13px; padding:8px 14px; }
   .editorLockOverlay{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(3px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:20px; z-index:4; }
   .editorLockOverlay p{ max-width:38ch; color:var(--sub); margin:0; font-size:14px; }
 
-  .adBanner{ display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(90deg, var(--accent), #ff8a5c); color:#fff; padding:10px 20px; font-size:13px; font-weight:600; flex-wrap:wrap; text-align:center; }
+  .adBanner{ display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(90deg, var(--accent), #ff8a5c); color:#fff; padding:10px 20px; font-size:13px; font-weight:600; flex-wrap:wrap; text-align:center; animation:slideDown .5s ease; }
+  @keyframes slideDown{ from{ transform:translateY(-100%);} to{ transform:translateY(0);} }
   .adBanner button{ background:#fff; color:var(--accent); border:none; padding:6px 14px; border-radius:20px; font-size:12px; }
   .adBanner .closeAd{ background:transparent; color:#fff; border:none; padding:0 4px; font-weight:700; font-size:15px; }
   .adModalBg{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:30; display:none; align-items:center; justify-content:center; padding:20px; }
-  .adModalBg.show{ display:flex; }
+  .adModalBg.show{ display:flex; animation:fadeIn .3s ease; }
   .adModal{ background:var(--panel); border-radius:18px; padding:30px; max-width:420px; width:100%; text-align:center; }
   .adModal h2{ margin:6px 0 8px; font-size:22px; }
   .adModal p{ color:var(--sub); font-size:14px; line-height:1.6; margin:0 0 18px; }
   .adModal ul{ text-align:left; color:var(--sub); font-size:13px; line-height:1.8; margin:0 0 20px; padding-left:20px; }
-  .adModal .badge{ margin-bottom:2px; }
 </style>
 </head>
 <body>
 
 <div class="adBanner" id="adBanner">
-  <span>🚀 Go Pro — colored/blurred backgrounds, auto-crop, and the full editor.</span>
+  <span>Go Pro: colored/blurred backgrounds, auto-crop, and the full editor.</span>
   <button id="bannerUpgradeBtn">Upgrade</button>
   <button class="closeAd" id="bannerCloseBtn">✕</button>
 </div>
@@ -142,9 +153,9 @@
 
 <main>
   <h1>Remove any background in one click</h1>
-  <p class="lede">Drop a photo with a fairly plain background. Transparent cutouts are free for everyone — sign in to unlock colored/blurred backgrounds, auto-crop, and the full editor.</p>
+  <p class="lede">Drop a photo with a fairly plain background. Transparent cutouts are free for everyone. Sign in to unlock colored and blurred backgrounds, auto-crop, and the full editor.</p>
 
-  <div class="panel">
+  <div class="panel reveal">
     <div class="drop" id="drop">
       <p><strong>Click to upload</strong> or drag an image here</p>
       <p style="margin-top:6px;">Works best on solid or simple backgrounds</p>
@@ -152,10 +163,13 @@
     </div>
 
     <div class="workspace" id="workspace">
-      <div class="canvases">
-        <div class="frame"><span>Original</span><canvas id="srcCanvas"></canvas></div>
-        <div class="frame checker"><span>Cutout</span><canvas id="outCanvas"></canvas></div>
+      <div class="compareWrap" id="compareWrap">
+        <div class="compareBase checker"><canvas id="previewCanvas"></canvas></div>
+        <div class="compareOverlay" id="compareOverlay"><canvas id="srcCanvas"></canvas></div>
+        <div class="compareDivider" id="compareDivider"></div>
       </div>
+      <input type="range" id="compareSlider" class="wideRange" min="0" max="100" value="50">
+
       <div class="controls">
         <div class="control">Sensitivity
           <input type="range" id="threshold" min="5" max="120" value="38">
@@ -175,10 +189,19 @@
         </div>
         <div class="checkctrl">
           <input type="checkbox" id="autoCrop">
-          <label for="autoCrop">Auto-crop to subject</label>
+          <label for="autoCrop">Auto-crop on download</label>
         </div>
       </div>
       <p class="note" id="gateNote">Sign in to unlock solid/blurred backgrounds and auto-crop.</p>
+
+      <div class="row" style="margin-bottom:14px;">
+        <button id="eraseToggleBtn">Erase mode: Off</button>
+        <div class="control" style="min-width:130px;">Brush size
+          <input type="range" id="eraseBrush" min="6" max="40" value="18">
+        </div>
+        <button id="resetEraseBtn">Reset erasures</button>
+      </div>
+
       <div class="row">
         <button id="resetBtn">Start over</button>
       </div>
@@ -195,9 +218,9 @@
     </div>
   </div>
 
-  <div class="panel workspace" id="editorPanel">
+  <div class="panel workspace reveal" id="editorPanel">
     <div class="editorLockOverlay" id="editorLock">
-      <p>Sign in to unlock the editor — add text, stickers, and reposition your cutout.</p>
+      <p>Sign in to unlock the editor. Add text, stickers, an outline, and reposition your cutout.</p>
       <button class="primary" id="editorSignInBtn">Sign in with Google</button>
     </div>
     <div class="editorTop">
@@ -240,17 +263,24 @@
           <div class="control" id="stageColorWrap" style="display:none;">Color
             <input type="color" id="stageColor" value="#ffffff">
           </div>
+          <h4 style="margin-top:6px;">Outline</h4>
+          <div class="checkctrl">
+            <input type="checkbox" id="outlineToggle">
+            <label for="outlineToggle">Add outline</label>
+          </div>
+          <div class="control">Outline color <input type="color" id="outlineColor" value="#ffffff"></div>
+          <div class="control">Thickness <input type="range" id="outlineThickness" min="2" max="20" value="8"></div>
         </div>
       </div>
       <div class="canvasWrap">
         <button id="deleteSelectedBtn">Delete selected</button>
         <canvas id="stageCanvas" width="480" height="480"></canvas>
-        <p class="canvasHint">Click a layer to select · drag to move</p>
+        <p class="canvasHint">Click a layer to select, drag to move, drag its corner handle to resize</p>
       </div>
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel reveal">
     <h3>Plans</h3>
     <div class="plans">
       <div class="plan">
@@ -269,8 +299,8 @@
         <h3>Pro</h3>
         <div class="price">$9<small>/month</small></div>
         <ul>
-          <li>Colored &amp; blurred backgrounds, auto-crop</li>
-          <li>Full text &amp; sticker editor</li>
+          <li>Colored and blurred backgrounds, auto-crop</li>
+          <li>Full text, sticker, and outline editor</li>
           <li>Unlimited downloads</li>
         </ul>
         <button class="primary" id="upgradeBtn">Upgrade</button>
@@ -296,11 +326,11 @@
   <div class="adModal">
     <span class="badge">Pro</span>
     <h2>Unlock everything Cutout can do</h2>
-    <p>Sign in and go Pro for the full toolkit — no more guessing what's locked.</p>
+    <p>Sign in and go Pro for the full toolkit, no more guessing what's locked.</p>
     <ul>
       <li>Colored and blurred backgrounds</li>
       <li>Auto-crop to subject</li>
-      <li>Full text &amp; sticker editor</li>
+      <li>Full text, sticker, and outline editor</li>
       <li>Unlimited downloads, synced across devices</li>
     </ul>
     <div class="row" style="justify-content:center;">
@@ -311,7 +341,6 @@
 </div>
 
 <script>
-// ============ CORE TOOL — works with zero setup, never depends on Firebase ============
 (function(){
   const DAILY_LIMIT = 3;
   const today = new Date().toISOString().slice(0,10);
@@ -326,7 +355,7 @@
   function isPro(){ return window.__cutoutProOverride === true; }
   function updateQuotaLabel(){
     const el = document.getElementById('quotaLabel');
-    if(isPro()){ el.textContent = 'Pro — unlimited'; return; }
+    if(isPro()){ el.textContent = 'Pro, unlimited'; return; }
     const u = localUsage();
     el.textContent = Math.max(0, DAILY_LIMIT - u.count) + ' free cutouts left today';
   }
@@ -336,8 +365,6 @@
   function loadFeedback(){ return JSON.parse(localStorage.getItem('cutout_feedback') || '[]'); }
   function saveFeedback(list){ localStorage.setItem('cutout_feedback', JSON.stringify(list.slice(-200))); }
   function applySmartDefaults(){
-    // recent "perfect" ratings count more than old ones, so it keeps adapting
-    // instead of averaging in stale settings forever. (internal only — no UI)
     const perfects = loadFeedback().filter(f => f.rating === 'perfect').slice(-50);
     if(perfects.length === 0) return;
     let wT=0, wF=0, wSum=0;
@@ -355,7 +382,10 @@
   const editorPanel = document.getElementById('editorPanel');
   const editorLock = document.getElementById('editorLock');
   const srcCanvas = document.getElementById('srcCanvas');
-  const outCanvas = document.getElementById('outCanvas');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const compareOverlay = document.getElementById('compareOverlay');
+  const compareDivider = document.getElementById('compareDivider');
+  const compareSlider = document.getElementById('compareSlider');
   const thresholdEl = document.getElementById('threshold');
   const featherEl = document.getElementById('feather');
   const bgModeEl = document.getElementById('bgMode');
@@ -368,12 +398,16 @@
   const perfectBtn = document.getElementById('perfectBtn');
   const almostBtn = document.getElementById('almostBtn');
   const feedbackThanks = document.getElementById('feedbackThanks');
+  const eraseToggleBtn = document.getElementById('eraseToggleBtn');
+  const eraseBrush = document.getElementById('eraseBrush');
+  const resetEraseBtn = document.getElementById('resetEraseBtn');
   let currentImg = null;
   let ratedThisImage = false;
+  let eraseMode = false, erasing = false;
+  let manualErase = null;
 
   applySmartDefaults();
 
-  // ---- login gating ----
   function refreshAuthGate(){
     document.querySelectorAll('#bgMode option[value="color"], #bgMode option[value="blur"]').forEach(o => o.disabled = !signedIn);
     autoCropEl.disabled = !signedIn;
@@ -381,7 +415,7 @@
     if(!signedIn){
       if(bgModeEl.value !== 'transparent'){ bgModeEl.value = 'transparent'; colorWrap.style.display = 'none'; }
       if(autoCropEl.checked){ autoCropEl.checked = false; }
-      process();
+      renderPreview();
     }
     editorLock.style.display = signedIn ? 'none' : 'flex';
   }
@@ -400,11 +434,14 @@
   drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
   drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
   fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
-  bgModeEl.addEventListener('change', () => { colorWrap.style.display = bgModeEl.value === 'color' ? 'flex' : 'none'; process(); });
-  bgColorEl.addEventListener('input', process);
-  autoCropEl.addEventListener('change', process);
+  bgModeEl.addEventListener('change', () => { colorWrap.style.display = bgModeEl.value === 'color' ? 'flex' : 'none'; renderPreview(); });
+  bgColorEl.addEventListener('input', renderPreview);
   thresholdEl.addEventListener('input', process);
   featherEl.addEventListener('input', process);
+  compareSlider.addEventListener('input', () => {
+    compareOverlay.style.width = compareSlider.value + '%';
+    compareDivider.style.left = compareSlider.value + '%';
+  });
 
   function loadFile(file){
     if(!file.type.startsWith('image/')) return;
@@ -435,6 +472,7 @@
     const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
     srcCanvas.width = w; srcCanvas.height = h;
     srcCanvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    manualErase = new Uint8Array(w*h);
     process();
   }
 
@@ -462,9 +500,6 @@
       const x = idx % w, y = (idx / w) | 0;
       seed(x+1,y); seed(x-1,y); seed(x,y+1); seed(x,y-1);
     }
-    // second pass: find pockets fully enclosed by the subject (e.g. inside a
-    // letter P/O/D) that were never reached from the border, and remove them
-    // too if their color still matches the background.
     const compId = new Int32Array(w*h).fill(-1);
     let comp = 0;
     for(let start=0; start<w*h; start++){
@@ -530,41 +565,7 @@
 
   let lastAlpha=null, lastData=null, lastW=0, lastH=0, lastBBox=null;
 
-  function process(){
-    if(!currentImg) return;
-    const w = srcCanvas.width, h = srcCanvas.height;
-    const sctx = srcCanvas.getContext('2d');
-    const octx = outCanvas.getContext('2d');
-    const imgData = sctx.getImageData(0, 0, w, h);
-    const data = imgData.data;
-
-    const threshold = parseInt(thresholdEl.value, 10);
-    const feather = parseInt(featherEl.value, 10);
-    const mask = computeMask(data, w, h, threshold);
-    let alpha = new Float32Array(w*h);
-    for(let p=0;p<w*h;p++) alpha[p] = mask[p] ? 0 : 255;
-    alpha = boxBlur(alpha, w, h, feather);
-
-    let minX=w, minY=h, maxX=-1, maxY=-1;
-    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-      if(alpha[y*w+x] > 20){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
-    }
-    if(maxX < 0){ minX=0; minY=0; maxX=w-1; maxY=h-1; }
-    const pad = 6;
-    minX = Math.max(0, minX-pad); minY = Math.max(0, minY-pad);
-    maxX = Math.min(w-1, maxX+pad); maxY = Math.min(h-1, maxY+pad);
-
-    lastAlpha = alpha; lastData = data; lastW = w; lastH = h;
-    lastBBox = { minX, minY, maxX, maxY };
-
-    const cropped = signedIn && autoCropEl.checked;
-    const outW = cropped ? (maxX-minX+1) : w;
-    const outH = cropped ? (maxY-minY+1) : h;
-    const offX = cropped ? minX : 0;
-    const offY = cropped ? minY : 0;
-    outCanvas.width = outW; outCanvas.height = outH;
-
-    const mode = signedIn ? bgModeEl.value : 'transparent';
+  function composite(data, alpha, w, h, offX, offY, outW, outH, mode, bgHex){
     let blurredBg = null;
     if(mode === 'blur'){
       const tmp = document.createElement('canvas');
@@ -574,14 +575,13 @@
       tctx.drawImage(srcCanvas, offX, offY, outW, outH, 0, 0, outW, outH);
       blurredBg = tctx.getImageData(0,0,outW,outH).data;
     }
-    let bgRgb = mode === 'color' ? hexToRgb(bgColorEl.value) : null;
-
-    const outImg = octx.createImageData(outW, outH);
+    const bgRgb = mode === 'color' ? hexToRgb(bgHex) : null;
+    const outImg = new ImageData(outW, outH);
     const od = outImg.data;
     for(let y=0;y<outH;y++){
       for(let x=0;x<outW;x++){
         const sx = x+offX, sy = y+offY;
-        const si = (sy*w+sx);
+        const si = sy*w+sx;
         const a = alpha[si] / 255;
         const di = (y*outW+x)*4;
         const fr = data[si*4], fg = data[si*4+1], fb = data[si*4+2];
@@ -598,18 +598,112 @@
         }
       }
     }
-    octx.putImageData(outImg, 0, 0);
+    return outImg;
+  }
+
+  function process(){
+    if(!currentImg) return;
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const sctx = srcCanvas.getContext('2d');
+    const imgData = sctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+
+    const threshold = parseInt(thresholdEl.value, 10);
+    const feather = parseInt(featherEl.value, 10);
+    const mask = computeMask(data, w, h, threshold);
+
+    let minX=w, minY=h, maxX=-1, maxY=-1;
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      if(mask[y*w+x] === 0){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+    }
+    if(maxX < 0){ minX=0; minY=0; maxX=w-1; maxY=h-1; }
+    const pad = Math.max(4, Math.ceil(feather/2)+2);
+    minX = Math.max(0, minX-pad); minY = Math.max(0, minY-pad);
+    maxX = Math.min(w-1, maxX+pad); maxY = Math.min(h-1, maxY+pad);
+    lastBBox = { minX, minY, maxX, maxY };
+
+    let alpha = new Float32Array(w*h);
+    for(let p=0;p<w*h;p++) alpha[p] = mask[p] ? 0 : 255;
+    alpha = boxBlur(alpha, w, h, feather);
+    if(manualErase && manualErase.length === w*h){
+      for(let p=0;p<w*h;p++) if(manualErase[p]) alpha[p] = 0;
+    }
+
+    lastAlpha = alpha; lastData = data; lastW = w; lastH = h;
+    renderPreview();
     updateStageSubject();
   }
 
+  function renderPreview(){
+    if(!currentImg) return;
+    const mode = signedIn ? bgModeEl.value : 'transparent';
+    previewCanvas.width = lastW; previewCanvas.height = lastH;
+    const imgData = composite(lastData, lastAlpha, lastW, lastH, 0, 0, lastW, lastH, mode, bgColorEl.value);
+    previewCanvas.getContext('2d').putImageData(imgData, 0, 0);
+  }
+
+  // ---- object eraser ----
+  function previewPos(e){
+    const rect = previewCanvas.getBoundingClientRect();
+    const scaleX = previewCanvas.width / rect.width, scaleY = previewCanvas.height / rect.height;
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: cx*scaleX, y: cy*scaleY };
+  }
+  function eraseAt(p){
+    if(!lastAlpha) return;
+    const r = parseInt(eraseBrush.value,10);
+    const w = lastW, h = lastH;
+    const x0 = Math.max(0, Math.floor(p.x-r)), x1 = Math.min(w-1, Math.ceil(p.x+r));
+    const y0 = Math.max(0, Math.floor(p.y-r)), y1 = Math.min(h-1, Math.ceil(p.y+r));
+    for(let y=y0;y<=y1;y++){
+      for(let x=x0;x<=x1;x++){
+        if((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y) <= r*r){
+          const idx = y*w+x;
+          lastAlpha[idx] = 0;
+          manualErase[idx] = 1;
+        }
+      }
+    }
+    renderPreview();
+    updateStageSubject();
+  }
+  eraseToggleBtn.addEventListener('click', () => {
+    eraseMode = !eraseMode;
+    eraseToggleBtn.textContent = 'Erase mode: ' + (eraseMode ? 'On' : 'Off');
+    eraseToggleBtn.classList.toggle('active', eraseMode);
+    compareOverlay.style.pointerEvents = eraseMode ? 'none' : 'auto';
+    previewCanvas.style.cursor = eraseMode ? 'crosshair' : 'default';
+  });
+  resetEraseBtn.addEventListener('click', () => {
+    if(manualErase) manualErase.fill(0);
+    process();
+  });
+  previewCanvas.addEventListener('mousedown', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); });
+  previewCanvas.addEventListener('mousemove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); });
+  window.addEventListener('mouseup', () => { erasing = false; });
+  previewCanvas.addEventListener('touchstart', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
+  previewCanvas.addEventListener('touchmove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
+  previewCanvas.addEventListener('touchend', () => { erasing = false; });
+
   downloadBtn.addEventListener('click', () => {
+    if(!currentImg || !lastAlpha) return;
     if(!isPro() && localUsage().count >= DAILY_LIMIT){ lockedNote.style.display = 'block'; return; }
     lockedNote.style.display = 'none';
     if(!isPro()){ const u = localUsage(); u.count += 1; saveLocalUsage(u); }
     updateQuotaLabel();
+    const cropped = signedIn && autoCropEl.checked;
+    const { minX, minY, maxX, maxY } = lastBBox;
+    const offX = cropped ? minX : 0, offY = cropped ? minY : 0;
+    const outW = cropped ? (maxX-minX+1) : lastW, outH = cropped ? (maxY-minY+1) : lastH;
+    const mode = signedIn ? bgModeEl.value : 'transparent';
+    const imgData = composite(lastData, lastAlpha, lastW, lastH, offX, offY, outW, outH, mode, bgColorEl.value);
+    const tmp = document.createElement('canvas');
+    tmp.width = outW; tmp.height = outH;
+    tmp.getContext('2d').putImageData(imgData, 0, 0);
     const link = document.createElement('a');
     link.download = 'cutout.png';
-    link.href = outCanvas.toDataURL('image/png');
+    link.href = tmp.toDataURL('image/png');
     link.click();
     if(window.__cutoutSyncDownload) window.__cutoutSyncDownload();
   });
@@ -620,6 +714,7 @@
     drop.style.display = '';
     fileInput.value = '';
     currentImg = null;
+    manualErase = null;
     stageLayers.length = 0;
     renderStage();
   });
@@ -638,7 +733,6 @@
     if(rating === 'perfect'){
       applySmartDefaults();
     } else {
-      // "almost" — the brain tries a nearby setting instead of just logging the click.
       const perfects = list.filter(f => f.rating === 'perfect').slice(-20);
       let targetT = parseInt(thresholdEl.value,10), targetF = parseInt(featherEl.value,10);
       if(perfects.length){
@@ -661,19 +755,22 @@
     alert('Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.');
   });
 
-  // ============ EDITOR: tool rail + draggable subject/text/emoji + selection ============
+  // ============ EDITOR ============
   const stageCanvas = document.getElementById('stageCanvas');
   const sctx2 = stageCanvas.getContext('2d');
   const stageBgModeEl = document.getElementById('stageBgMode');
   const stageColorEl = document.getElementById('stageColor');
   const stageColorWrap = document.getElementById('stageColorWrap');
+  const outlineToggle = document.getElementById('outlineToggle');
+  const outlineColor = document.getElementById('outlineColor');
+  const outlineThickness = document.getElementById('outlineThickness');
   const textInput = document.getElementById('textInput');
   const textColorEl = document.getElementById('textColor');
   const textSizeEl = document.getElementById('textSize');
   const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
   let stageLayers = [];
   let subjectImg = null;
-  let dragging = null, selected = null, dragOffX = 0, dragOffY = 0, moved = false;
+  let dragging = null, selected = null, dragOffX = 0, dragOffY = 0;
   let resizing = null, resizeStartDist = 0, resizeStartW = 0, resizeStartH = 0, resizeStartSize = 0;
 
   document.querySelectorAll('.toolBtn').forEach(btn => {
@@ -689,6 +786,9 @@
     renderStage();
   });
   stageColorEl.addEventListener('input', renderStage);
+  outlineToggle.addEventListener('change', renderStage);
+  outlineColor.addEventListener('input', renderStage);
+  outlineThickness.addEventListener('input', renderStage);
 
   function updateStageSubject(){
     if(!lastAlpha) return;
@@ -721,6 +821,22 @@
     im.src = tmp.toDataURL('image/png');
   }
 
+  function drawOutline(ctx, img, x, y, w, h, color, thickness){
+    if(thickness <= 0) return;
+    const sil = document.createElement('canvas'); sil.width = w; sil.height = h;
+    const sctxL = sil.getContext('2d');
+    sctxL.drawImage(img, 0, 0, w, h);
+    sctxL.globalCompositeOperation = 'source-in';
+    sctxL.fillStyle = color;
+    sctxL.fillRect(0, 0, w, h);
+    const steps = 16;
+    for(let i=0;i<steps;i++){
+      const angle = (i/steps)*Math.PI*2;
+      const dx = Math.cos(angle)*thickness, dy = Math.sin(angle)*thickness;
+      ctx.drawImage(sil, x+dx, y+dy, w, h);
+    }
+  }
+
   function renderStage(){
     sctx2.clearRect(0,0,stageCanvas.width,stageCanvas.height);
     if(stageBgModeEl.value === 'color'){
@@ -729,6 +845,9 @@
     }
     stageLayers.forEach(l => {
       if(l.type === 'subject' && subjectImg){
+        if(outlineToggle.checked){
+          drawOutline(sctx2, subjectImg, l.x-l.w/2, l.y-l.h/2, l.w, l.h, outlineColor.value, parseInt(outlineThickness.value,10));
+        }
         sctx2.drawImage(subjectImg, l.x-l.w/2, l.y-l.h/2, l.w, l.h);
       } else if(l.type === 'text'){
         sctx2.font = 'bold ' + l.size + 'px -apple-system, sans-serif';
@@ -757,11 +876,6 @@
     deleteSelectedBtn.style.display = selected ? 'inline-block' : 'none';
   }
 
-  function handlePos(l){
-    const b = layerBounds(l);
-    return { x: b.x+b.w+4, y: b.y+b.h+4 };
-  }
-
   function layerBounds(l){
     if(l.type === 'subject') return { x:l.x-l.w/2, y:l.y-l.h/2, w:l.w, h:l.h };
     if(l.type === 'text'){
@@ -770,6 +884,10 @@
       return { x:l.x-w/2, y:l.y-l.size/2, w, h:l.size };
     }
     return { x:l.x-l.size/2, y:l.y-l.size/2, w:l.size, h:l.size };
+  }
+  function handlePos(l){
+    const b = layerBounds(l);
+    return { x: b.x+b.w+4, y: b.y+b.h+4 };
   }
 
   function stagePos(e){
@@ -782,13 +900,11 @@
 
   function onDown(e){
     const p = stagePos(e);
-    moved = false;
     if(selected){
       const hp = handlePos(selected);
       if(Math.abs(p.x-hp.x) < 12 && Math.abs(p.y-hp.y) < 12){
         resizing = selected;
-        const cx = selected.x, cy = selected.y;
-        resizeStartDist = Math.max(10, Math.hypot(p.x-cx, p.y-cy));
+        resizeStartDist = Math.max(10, Math.hypot(p.x-selected.x, p.y-selected.y));
         resizeStartW = selected.w; resizeStartH = selected.h; resizeStartSize = selected.size;
         e.preventDefault();
         return;
@@ -826,7 +942,6 @@
     }
     if(!dragging) return;
     dragging.x = p.x - dragOffX; dragging.y = p.y - dragOffY;
-    moved = true;
     renderStage();
     e.preventDefault();
   }
@@ -869,29 +984,27 @@
     link.click();
   });
 
-  // ---- Pro promotion: banner + startup modal ----
+  // ---- ads ----
   const proPitch = 'Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.';
   const adBanner = document.getElementById('adBanner');
   const adModal = document.getElementById('adModal');
-  if(sessionStorage.getItem('cutout_banner_dismissed')) adBanner.style.display = 'none';
-  document.getElementById('bannerCloseBtn').addEventListener('click', () => {
-    adBanner.style.display = 'none';
-    sessionStorage.setItem('cutout_banner_dismissed', '1');
-  });
+  document.getElementById('bannerCloseBtn').addEventListener('click', () => { adBanner.style.display = 'none'; });
   document.getElementById('bannerUpgradeBtn').addEventListener('click', () => alert(proPitch));
   document.getElementById('adModalUpgradeBtn').addEventListener('click', () => alert(proPitch));
   document.getElementById('adModalCloseBtn').addEventListener('click', () => adModal.classList.remove('show'));
-  if(!sessionStorage.getItem('cutout_modal_shown') && !isPro()){
-    setTimeout(() => {
-      adModal.classList.add('show');
-      sessionStorage.setItem('cutout_modal_shown', '1');
-    }, 1200);
+  if(!isPro()){
+    setTimeout(() => { adModal.classList.add('show'); }, 1200);
   }
+
+  // ---- scroll reveal ----
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(entry => { if(entry.isIntersecting) entry.target.classList.add('in-view'); });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 })();
 </script>
 
 <script type="module">
-// ============ OPTIONAL FIREBASE LAYER — enhances the tool, never required ============
 try{
   const firebaseConfig = {
     apiKey: "AIzaSyBQZcB_X3DOoW2gu9THYWDqooKjwZjjZXk",
@@ -901,7 +1014,7 @@ try{
     messagingSenderId: "170399944282",
     appId: "1:170399944282:web:024e4a6fc2fb1a400dd263"
   };
-  if(firebaseConfig.apiKey === "YOUR_API_KEY") throw new Error('Firebase not configured yet — skipping optional layer.');
+  if(firebaseConfig.apiKey === "YOUR_API_KEY") throw new Error('Firebase not configured yet, skipping optional layer.');
 
   const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js");
   const { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } =
@@ -936,7 +1049,7 @@ try{
         try{ await signInWithRedirect(auth, provider); }
         catch(err2){ showAuthError('Sign-in failed: ' + err2.code); }
       } else if(err.code === 'auth/unauthorized-domain'){
-        showAuthError('This domain is not authorized in Firebase — add it under Authentication > Settings > Authorized domains.');
+        showAuthError('This domain is not authorized in Firebase, add it under Authentication > Settings > Authorized domains.');
       } else if(err.code !== 'auth/popup-closed-by-user'){
         showAuthError('Sign-in failed: ' + err.code);
       }
