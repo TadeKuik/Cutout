@@ -37,7 +37,7 @@
   main{ max-width:960px; margin:0 auto; padding:36px 22px 80px; }
   h1{ font-size:clamp(26px,4vw,40px); line-height:1.1; letter-spacing:-0.02em; margin:0 0 10px; }
   .lede{ color:var(--sub); font-size:16px; max-width:58ch; margin:0 0 28px; }
-  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
   .panel h3{ margin-top:0; }
   .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; }
   .drop:hover, .drop.drag{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
@@ -58,7 +58,9 @@
   select, input[type=color], input[type=text]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
   select:disabled, input:disabled{ opacity:.5; }
   .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; }
+  button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; transition:transform .1s, box-shadow .15s, background .15s; }
+  button:hover{ box-shadow:0 2px 8px rgba(0,0,0,.08); }
+  button:active{ transform:scale(0.98); }
   button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   #downloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
   button.good{ border-color:#1a8a5f; color:#1a8a5f; }
@@ -69,10 +71,11 @@
   .note{ font-size:13px; color:var(--accent); margin-top:2px; margin-bottom:14px; }
   .feedbackRow{ display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
   .feedbackRow span{ font-size:13px; color:var(--sub); }
-  .plans{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px; }
-  @media (max-width:640px){ .plans{ grid-template-columns:1fr; } }
-  .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); }
-  .plan.pro{ border-color:var(--accent); }
+  .plans{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:6px; align-items:stretch; }
+  @media (max-width:760px){ .plans{ grid-template-columns:1fr; } }
+  .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); display:flex; flex-direction:column; }
+  .plan.pro{ border-color:var(--accent); border-width:2px; transform:scale(1.03); box-shadow:0 6px 22px rgba(255,61,104,.15); z-index:1; }
+  .plan.pro .ribbon{ align-self:center; background:var(--accent); color:#fff; font-size:11px; font-weight:700; padding:3px 12px; border-radius:20px; margin-bottom:8px; }
   .plan h3{ margin:0 0 4px; font-size:16px; }
   .plan .price{ font-size:26px; font-weight:700; margin:6px 0 12px; }
   .plan .price small{ font-size:12px; font-weight:500; color:var(--sub); }
@@ -81,25 +84,29 @@
   footer{ text-align:center; color:var(--sub); font-size:12px; padding:20px; }
 
   /* ---- editor ---- */
-  #editorPanel{ padding:0; overflow:hidden; position:relative; }
-  .editorTop{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
-  .editorTop span{ font-weight:700; font-size:15px; }
-  .editorBody{ display:grid; grid-template-columns:64px 200px 1fr; min-height:440px; }
-  @media (max-width:700px){ .editorBody{ grid-template-columns:56px 1fr; } .canvasWrap{ grid-column:1/-1; order:3; } }
-  .toolRail{ background:var(--railbg); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:10px 6px; gap:6px; }
-  .toolBtn{ border:none; background:transparent; color:var(--sub); padding:12px 4px; font-size:11px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:4px; }
-  .toolBtn .ic{ font-size:18px; }
-  .toolBtn.active{ background:var(--panel); color:var(--accent); box-shadow:0 1px 3px rgba(0,0,0,.08); }
-  .toolPanel{ background:var(--railbg); border-right:1px solid var(--line); padding:16px; }
-  .toolPane{ display:flex; flex-direction:column; gap:12px; }
-  .toolPane h4{ margin:0 0 2px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--sub); }
-  .emojiGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-  .emojiGrid button{ font-size:20px; padding:8px 0; }
-  .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:repeating-conic-gradient(var(--bg) 0% 25%, transparent 0% 50%) 0 0/24px 24px, var(--panel); }
-  #stageCanvas{ cursor:grab; touch-action:none; max-width:100%; border-radius:8px; box-shadow:0 4px 18px rgba(0,0,0,.12); }
+  #editorPanel{ padding:0; overflow:hidden; position:relative; border-radius:20px; box-shadow:0 8px 30px rgba(0,0,0,.08); }
+  .editorTop{ display:flex; align-items:center; justify-content:space-between; padding:18px 24px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .editorTop span{ font-weight:700; font-size:15px; letter-spacing:-0.01em; }
+  #stageDownloadBtn{ width:auto; padding:10px 22px; font-size:14px; border-radius:9px; }
+  .editorBody{ display:grid; grid-template-columns:76px 210px 1fr; min-height:460px; }
+  @media (max-width:700px){ .editorBody{ grid-template-columns:64px 1fr; } .canvasWrap{ grid-column:1/-1; order:3; } }
+  .toolRail{ background:var(--railbg); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; padding:16px 8px; gap:8px; }
+  .toolBtn{ width:100%; border:none; background:transparent; color:var(--sub); padding:12px 4px; font-size:10.5px; font-weight:600; letter-spacing:.01em; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:5px; transition:background .15s, color .15s; }
+  .toolBtn .ic{ font-size:19px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:9px; }
+  .toolBtn:hover{ background:color-mix(in srgb, var(--accent) 8%, transparent); color:var(--ink); }
+  .toolBtn.active{ background:var(--panel); color:var(--accent); box-shadow:0 2px 6px rgba(0,0,0,.1); }
+  .toolBtn.active .ic{ background:color-mix(in srgb, var(--accent) 12%, transparent); }
+  .toolPanel{ background:var(--railbg); border-right:1px solid var(--line); padding:20px 18px; }
+  .toolPane{ display:flex; flex-direction:column; gap:14px; }
+  .toolPane h4{ margin:0 0 4px; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); font-weight:700; }
+  .emojiGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .emojiGrid button{ font-size:19px; padding:10px 0; border-radius:10px; background:var(--panel); }
+  .emojiGrid button:hover{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
+  .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; background:var(--railbg); }
+  #stageCanvas{ cursor:grab; touch-action:none; max-width:100%; border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.16), 0 0 0 1px var(--line); }
   #stageCanvas:active{ cursor:grabbing; }
-  .canvasHint{ font-size:12px; color:var(--sub); margin-top:10px; }
-  #deleteSelectedBtn{ position:absolute; top:16px; right:16px; display:none; }
+  .canvasHint{ font-size:12px; color:var(--sub); margin-top:14px; }
+  #deleteSelectedBtn{ position:absolute; top:20px; right:20px; display:none; font-size:13px; padding:8px 14px; }
   .editorLockOverlay{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(3px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:20px; z-index:4; }
   .editorLockOverlay p{ max-width:38ch; color:var(--sub); margin:0; font-size:14px; }
 
@@ -183,9 +190,8 @@
         <span>How's this cutout?</span>
         <button class="good" id="perfectBtn">Perfect</button>
         <button class="meh" id="almostBtn">Almost</button>
-        <span id="feedbackThanks" style="display:none; color:var(--sub);">Thanks — future defaults just adjusted.</span>
+        <span id="feedbackThanks" style="display:none; color:var(--sub);">Thanks!</span>
       </div>
-      <p class="note" id="brainIndicator" style="color:var(--sub);"></p>
     </div>
   </div>
 
@@ -258,8 +264,9 @@
         <button disabled>Current plan</button>
       </div>
       <div class="plan pro">
-        <span class="badge">Signed in</span>
-        <h3>Unlimited</h3>
+        <span class="ribbon">Most popular</span>
+        <span class="badge">Pro</span>
+        <h3>Pro</h3>
         <div class="price">$9<small>/month</small></div>
         <ul>
           <li>Colored &amp; blurred backgrounds, auto-crop</li>
@@ -267,6 +274,17 @@
           <li>Unlimited downloads</li>
         </ul>
         <button class="primary" id="upgradeBtn">Upgrade</button>
+      </div>
+      <div class="plan">
+        <span class="badge">Premium</span>
+        <h3>Team</h3>
+        <div class="price">$19<small>/month</small></div>
+        <ul>
+          <li>Everything in Pro</li>
+          <li>Batch processing (coming soon)</li>
+          <li>Priority support</li>
+        </ul>
+        <button disabled id="premiumBtn">Coming soon</button>
       </div>
     </div>
   </div>
@@ -318,24 +336,17 @@
   function loadFeedback(){ return JSON.parse(localStorage.getItem('cutout_feedback') || '[]'); }
   function saveFeedback(list){ localStorage.setItem('cutout_feedback', JSON.stringify(list.slice(-200))); }
   function applySmartDefaults(){
-    // "the brain": recent "perfect" ratings count more than old ones, so it
-    // keeps adapting instead of averaging in stale settings forever.
+    // recent "perfect" ratings count more than old ones, so it keeps adapting
+    // instead of averaging in stale settings forever. (internal only — no UI)
     const perfects = loadFeedback().filter(f => f.rating === 'perfect').slice(-50);
     if(perfects.length === 0) return;
     let wT=0, wF=0, wSum=0;
     perfects.forEach((f,i) => {
-      const weight = i + 1; // later entries (more recent) weigh more
+      const weight = i + 1;
       wT += f.threshold * weight; wF += f.feather * weight; wSum += weight;
     });
     thresholdEl.value = Math.round(wT / wSum);
     featherEl.value = Math.round(wF / wSum);
-  }
-  function updateBrainIndicator(){
-    const list = loadFeedback();
-    const el = document.getElementById('brainIndicator');
-    if(list.length === 0){ el.textContent = ''; return; }
-    const perfects = list.filter(f => f.rating === 'perfect').length;
-    el.textContent = '🧠 Learned from ' + list.length + ' rating' + (list.length===1?'':'s') + ' (' + perfects + ' perfect)';
   }
 
   const drop = document.getElementById('drop');
@@ -358,9 +369,9 @@
   const almostBtn = document.getElementById('almostBtn');
   const feedbackThanks = document.getElementById('feedbackThanks');
   let currentImg = null;
+  let ratedThisImage = false;
 
   applySmartDefaults();
-  updateBrainIndicator();
 
   // ---- login gating ----
   function refreshAuthGate(){
@@ -407,6 +418,9 @@
         feedbackThanks.style.display = 'none';
         perfectBtn.classList.remove('active');
         almostBtn.classList.remove('active');
+        perfectBtn.disabled = false;
+        almostBtn.disabled = false;
+        ratedThisImage = false;
       };
       img.src = ev.target.result;
     };
@@ -611,13 +625,16 @@
   });
 
   function sendFeedback(rating, btn, otherBtn){
+    if(ratedThisImage) return;
+    ratedThisImage = true;
     const list = loadFeedback();
     list.push({ rating, threshold: parseInt(thresholdEl.value,10), feather: parseInt(featherEl.value,10), ts: Date.now() });
     saveFeedback(list);
     btn.classList.add('active');
     otherBtn.classList.remove('active');
+    perfectBtn.disabled = true;
+    almostBtn.disabled = true;
     feedbackThanks.style.display = 'inline';
-    updateBrainIndicator();
     if(rating === 'perfect'){
       applySmartDefaults();
     } else {
