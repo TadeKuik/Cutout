@@ -22,9 +22,9 @@
   payment provider's server-side webhook — never from the browser.
 -->
 <style>
-  :root{ --bg:#f4f5f3; --panel:#ffffff; --ink:#15171a; --sub:#5c6167; --line:#dfe2df; --accent:#ff3d68; --accent-ink:#ffffff; }
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; } }
-  :root[data-theme="dark"]{ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; }
+  :root{ --bg:#f4f5f3; --panel:#ffffff; --ink:#15171a; --sub:#5c6167; --line:#dfe2df; --accent:#ff3d68; --accent-ink:#ffffff; --railbg:#f0f1ee; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; --railbg:#17181b; } }
+  :root[data-theme="dark"]{ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; --railbg:#17181b; }
   *{box-sizing:border-box;}
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   header{ display:flex; align-items:center; justify-content:space-between; padding:18px 26px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; flex-wrap:wrap; gap:10px; }
@@ -51,27 +51,24 @@
   .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
   .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
   canvas{ display:block; width:100%; height:auto; }
-  #stageCanvas{ cursor:grab; touch-action:none; }
-  #stageCanvas:active{ cursor:grabbing; }
-  .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:16px; }
+  .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:8px; }
   .control{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); min-width:150px; }
   .checkctrl{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sub); }
   input[type=range]{ accent-color:var(--accent); }
   select, input[type=color], input[type=text]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+  select:disabled, input:disabled{ opacity:.5; }
   .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; }
   button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
-  #downloadBtn, #stageDownloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
+  #downloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
   button.good{ border-color:#1a8a5f; color:#1a8a5f; }
   button.meh{ border-color:#c98a12; color:#c98a12; }
   button.good.active{ background:#1a8a5f; color:#fff; }
   button.meh.active{ background:#c98a12; color:#fff; }
   button:disabled{ opacity:.5; cursor:not-allowed; }
-  .note{ font-size:13px; color:var(--accent); margin-top:10px; }
+  .note{ font-size:13px; color:var(--accent); margin-top:2px; margin-bottom:14px; }
   .feedbackRow{ display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
   .feedbackRow span{ font-size:13px; color:var(--sub); }
-  .emojiRow{ display:flex; gap:6px; flex-wrap:wrap; }
-  .emojiRow button{ font-size:20px; padding:6px 10px; }
   .plans{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px; }
   @media (max-width:640px){ .plans{ grid-template-columns:1fr; } }
   .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); }
@@ -82,6 +79,29 @@
   .plan ul{ margin:0 0 14px; padding-left:18px; color:var(--sub); font-size:13px; line-height:1.7; }
   .badge{ display:inline-block; font-size:11px; color:var(--accent); border:1px solid var(--accent); border-radius:20px; padding:2px 9px; margin-bottom:6px; }
   footer{ text-align:center; color:var(--sub); font-size:12px; padding:20px; }
+
+  /* ---- editor ---- */
+  #editorPanel{ padding:0; overflow:hidden; position:relative; }
+  .editorTop{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .editorTop span{ font-weight:700; font-size:15px; }
+  .editorBody{ display:grid; grid-template-columns:64px 200px 1fr; min-height:440px; }
+  @media (max-width:700px){ .editorBody{ grid-template-columns:56px 1fr; } .canvasWrap{ grid-column:1/-1; order:3; } }
+  .toolRail{ background:var(--railbg); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:10px 6px; gap:6px; }
+  .toolBtn{ border:none; background:transparent; color:var(--sub); padding:12px 4px; font-size:11px; font-weight:600; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .toolBtn .ic{ font-size:18px; }
+  .toolBtn.active{ background:var(--panel); color:var(--accent); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .toolPanel{ background:var(--railbg); border-right:1px solid var(--line); padding:16px; }
+  .toolPane{ display:flex; flex-direction:column; gap:12px; }
+  .toolPane h4{ margin:0 0 2px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--sub); }
+  .emojiGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .emojiGrid button{ font-size:20px; padding:8px 0; }
+  .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:repeating-conic-gradient(var(--bg) 0% 25%, transparent 0% 50%) 0 0/24px 24px, var(--panel); }
+  #stageCanvas{ cursor:grab; touch-action:none; max-width:100%; border-radius:8px; box-shadow:0 4px 18px rgba(0,0,0,.12); }
+  #stageCanvas:active{ cursor:grabbing; }
+  .canvasHint{ font-size:12px; color:var(--sub); margin-top:10px; }
+  #deleteSelectedBtn{ position:absolute; top:16px; right:16px; display:none; }
+  .editorLockOverlay{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(3px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:20px; z-index:4; }
+  .editorLockOverlay p{ max-width:38ch; color:var(--sub); margin:0; font-size:14px; }
 </style>
 </head>
 <body>
@@ -98,7 +118,7 @@
 
 <main>
   <h1>Remove any background in one click</h1>
-  <p class="lede">Drop a photo with a fairly plain background. Adjust sensitivity, choose what replaces the background, auto-crop to the subject, and download.</p>
+  <p class="lede">Drop a photo with a fairly plain background. Transparent cutouts are free for everyone — sign in to unlock colored/blurred backgrounds, auto-crop, and the full editor.</p>
 
   <div class="panel">
     <div class="drop" id="drop">
@@ -134,6 +154,7 @@
           <label for="autoCrop">Auto-crop to subject</label>
         </div>
       </div>
+      <p class="note" id="gateNote">Sign in to unlock solid/blurred backgrounds and auto-crop.</p>
       <div class="row">
         <button id="resetBtn">Start over</button>
       </div>
@@ -150,48 +171,59 @@
     </div>
   </div>
 
-  <div class="panel workspace" id="composePanel">
-    <h3>Add text &amp; stickers</h3>
-    <p class="lede" style="margin-bottom:16px;">Drag the cutout, text, and stickers anywhere on the canvas below.</p>
-    <div class="frame checker" style="margin-bottom:16px; max-width:480px;">
-      <canvas id="stageCanvas" width="480" height="480"></canvas>
+  <div class="panel workspace" id="editorPanel">
+    <div class="editorLockOverlay" id="editorLock">
+      <p>Sign in to unlock the editor — add text, stickers, and reposition your cutout.</p>
+      <button class="primary" id="editorSignInBtn">Sign in with Google</button>
     </div>
-    <div class="controls">
-      <div class="control">Text
-        <input type="text" id="textInput" placeholder="Type something">
+    <div class="editorTop">
+      <span>Editor</span>
+      <button class="primary" id="stageDownloadBtn">Download</button>
+    </div>
+    <div class="editorBody">
+      <div class="toolRail">
+        <button class="toolBtn active" data-tool="text"><span class="ic">T</span>Text</button>
+        <button class="toolBtn" data-tool="stickers"><span class="ic">😀</span>Stickers</button>
+        <button class="toolBtn" data-tool="background"><span class="ic">▦</span>Canvas</button>
       </div>
-      <div class="control">Text color
-        <input type="color" id="textColor" value="#111111">
+      <div class="toolPanel">
+        <div class="toolPane" data-pane="text">
+          <h4>Add text</h4>
+          <input type="text" id="textInput" placeholder="Type something">
+          <div class="control">Color <input type="color" id="textColor" value="#111111"></div>
+          <div class="control">Size <input type="range" id="textSize" min="14" max="64" value="30"></div>
+          <button class="primary" id="addTextBtn">Add text</button>
+        </div>
+        <div class="toolPane" data-pane="stickers" hidden>
+          <h4>Stickers</h4>
+          <div class="emojiGrid">
+            <button data-emoji="😀">😀</button>
+            <button data-emoji="😎">😎</button>
+            <button data-emoji="❤️">❤️</button>
+            <button data-emoji="🔥">🔥</button>
+            <button data-emoji="⭐">⭐</button>
+            <button data-emoji="👍">👍</button>
+            <button data-emoji="🎉">🎉</button>
+            <button data-emoji="✨">✨</button>
+          </div>
+        </div>
+        <div class="toolPane" data-pane="background" hidden>
+          <h4>Canvas background</h4>
+          <select id="stageBgMode">
+            <option value="transparent">Transparent</option>
+            <option value="color">Solid color</option>
+          </select>
+          <div class="control" id="stageColorWrap" style="display:none;">Color
+            <input type="color" id="stageColor" value="#ffffff">
+          </div>
+        </div>
       </div>
-      <div class="control">Text size
-        <input type="range" id="textSize" min="14" max="64" value="30">
-      </div>
-      <div class="control">Stage background
-        <select id="stageBgMode">
-          <option value="transparent">Transparent</option>
-          <option value="color">Solid color</option>
-        </select>
-      </div>
-      <div class="control" id="stageColorWrap" style="display:none;">Color
-        <input type="color" id="stageColor" value="#ffffff">
+      <div class="canvasWrap">
+        <button id="deleteSelectedBtn">Delete selected</button>
+        <canvas id="stageCanvas" width="480" height="480"></canvas>
+        <p class="canvasHint">Click a layer to select · drag to move</p>
       </div>
     </div>
-    <div class="row" style="margin-bottom:10px;">
-      <button id="addTextBtn">Add text</button>
-      <button id="removeLayerBtn">Remove last dragged</button>
-      <button id="clearLayersBtn">Clear stickers &amp; text</button>
-    </div>
-    <div class="emojiRow" style="margin-bottom:16px;">
-      <button data-emoji="😀">😀</button>
-      <button data-emoji="😎">😎</button>
-      <button data-emoji="❤️">❤️</button>
-      <button data-emoji="🔥">🔥</button>
-      <button data-emoji="⭐">⭐</button>
-      <button data-emoji="👍">👍</button>
-      <button data-emoji="🎉">🎉</button>
-      <button data-emoji="✨">✨</button>
-    </div>
-    <button class="primary" id="stageDownloadBtn">Download composed image</button>
   </div>
 
   <div class="panel">
@@ -203,19 +235,18 @@
         <div class="price">$0</div>
         <ul>
           <li>3 downloads per day</li>
-          <li>All background modes</li>
-          <li>Auto-crop, text &amp; stickers included</li>
+          <li>Transparent backgrounds</li>
         </ul>
         <button disabled>Current plan</button>
       </div>
       <div class="plan pro">
-        <span class="badge">Pro</span>
+        <span class="badge">Signed in</span>
         <h3>Unlimited</h3>
         <div class="price">$9<small>/month</small></div>
         <ul>
+          <li>Colored &amp; blurred backgrounds, auto-crop</li>
+          <li>Full text &amp; sticker editor</li>
           <li>Unlimited downloads</li>
-          <li>Synced across devices</li>
-          <li>Priority support</li>
         </ul>
         <button class="primary" id="upgradeBtn">Upgrade</button>
       </div>
@@ -230,6 +261,7 @@
 (function(){
   const DAILY_LIMIT = 3;
   const today = new Date().toISOString().slice(0,10);
+  let signedIn = false;
 
   function localUsage(){
     let u = JSON.parse(localStorage.getItem('cutout_usage') || '{}');
@@ -259,7 +291,8 @@
   const drop = document.getElementById('drop');
   const fileInput = document.getElementById('fileInput');
   const workspace = document.getElementById('workspace');
-  const composePanel = document.getElementById('composePanel');
+  const editorPanel = document.getElementById('editorPanel');
+  const editorLock = document.getElementById('editorLock');
   const srcCanvas = document.getElementById('srcCanvas');
   const outCanvas = document.getElementById('outCanvas');
   const thresholdEl = document.getElementById('threshold');
@@ -268,6 +301,7 @@
   const bgColorEl = document.getElementById('bgColor');
   const colorWrap = document.getElementById('colorWrap');
   const autoCropEl = document.getElementById('autoCrop');
+  const gateNote = document.getElementById('gateNote');
   const downloadBtn = document.getElementById('downloadBtn');
   const lockedNote = document.getElementById('lockedNote');
   const perfectBtn = document.getElementById('perfectBtn');
@@ -276,6 +310,28 @@
   let currentImg = null;
 
   applySmartDefaults();
+
+  // ---- login gating ----
+  function refreshAuthGate(){
+    document.querySelectorAll('#bgMode option[value="color"], #bgMode option[value="blur"]').forEach(o => o.disabled = !signedIn);
+    autoCropEl.disabled = !signedIn;
+    gateNote.style.display = signedIn ? 'none' : 'block';
+    if(!signedIn){
+      if(bgModeEl.value !== 'transparent'){ bgModeEl.value = 'transparent'; colorWrap.style.display = 'none'; }
+      if(autoCropEl.checked){ autoCropEl.checked = false; }
+      process();
+    }
+    editorLock.style.display = signedIn ? 'none' : 'flex';
+  }
+  window.__cutoutOnAuthChange = function(user){
+    signedIn = !!user;
+    refreshAuthGate();
+  };
+  refreshAuthGate();
+  document.getElementById('editorSignInBtn').addEventListener('click', () => {
+    const btn = document.getElementById('signInBtn');
+    if(btn) btn.click();
+  });
 
   drop.addEventListener('click', () => fileInput.click());
   drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
@@ -308,7 +364,7 @@
 
   function drawWorkspace(img){
     workspace.classList.add('active');
-    composePanel.classList.add('active');
+    editorPanel.classList.add('active');
     const maxW = 480;
     const scale = Math.min(1, maxW / img.width);
     const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
@@ -401,14 +457,14 @@
     lastAlpha = alpha; lastData = data; lastW = w; lastH = h;
     lastBBox = { minX, minY, maxX, maxY };
 
-    const cropped = autoCropEl.checked;
+    const cropped = signedIn && autoCropEl.checked;
     const outW = cropped ? (maxX-minX+1) : w;
     const outH = cropped ? (maxY-minY+1) : h;
     const offX = cropped ? minX : 0;
     const offY = cropped ? minY : 0;
     outCanvas.width = outW; outCanvas.height = outH;
 
-    const mode = bgModeEl.value;
+    const mode = signedIn ? bgModeEl.value : 'transparent';
     let blurredBg = null;
     if(mode === 'blur'){
       const tmp = document.createElement('canvas');
@@ -460,7 +516,7 @@
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     workspace.classList.remove('active');
-    composePanel.classList.remove('active');
+    editorPanel.classList.remove('active');
     drop.style.display = '';
     fileInput.value = '';
     currentImg = null;
@@ -485,7 +541,7 @@
     alert('Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.');
   });
 
-  // ============ COMPOSE STAGE: draggable subject + text + emoji ============
+  // ============ EDITOR: tool rail + draggable subject/text/emoji + selection ============
   const stageCanvas = document.getElementById('stageCanvas');
   const sctx2 = stageCanvas.getContext('2d');
   const stageBgModeEl = document.getElementById('stageBgMode');
@@ -494,9 +550,18 @@
   const textInput = document.getElementById('textInput');
   const textColorEl = document.getElementById('textColor');
   const textSizeEl = document.getElementById('textSize');
-  let stageLayers = []; // {type:'subject'|'text'|'emoji', x, y, ...}
+  const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+  let stageLayers = [];
   let subjectImg = null;
-  let dragging = null, dragOffX = 0, dragOffY = 0;
+  let dragging = null, selected = null, dragOffX = 0, dragOffY = 0, moved = false;
+
+  document.querySelectorAll('.toolBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.toolBtn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.toolPane').forEach(p => p.hidden = p.dataset.pane !== btn.dataset.tool);
+    });
+  });
 
   stageBgModeEl.addEventListener('change', () => {
     stageColorWrap.style.display = stageBgModeEl.value === 'color' ? 'flex' : 'none';
@@ -522,7 +587,6 @@
       }
     }
     tctx.putImageData(img, 0, 0);
-    const dataUrl = tmp.toDataURL('image/png');
     const im = new Image();
     im.onload = () => {
       subjectImg = im;
@@ -533,7 +597,7 @@
       else { stageLayers.unshift({ type:'subject', x: stageCanvas.width/2, y: stageCanvas.height/2, w: dw, h: dh }); }
       renderStage();
     };
-    im.src = dataUrl;
+    im.src = tmp.toDataURL('image/png');
   }
 
   function renderStage(){
@@ -557,7 +621,17 @@
         sctx2.textAlign = 'center';
         sctx2.fillText(l.char, l.x, l.y);
       }
+      if(l === selected){
+        const b = layerBounds(l);
+        sctx2.save();
+        sctx2.strokeStyle = '#ff3d68';
+        sctx2.setLineDash([6,4]);
+        sctx2.lineWidth = 2;
+        sctx2.strokeRect(b.x-4, b.y-4, b.w+8, b.h+8);
+        sctx2.restore();
+      }
     });
+    deleteSelectedBtn.style.display = selected ? 'inline-block' : 'none';
   }
 
   function layerBounds(l){
@@ -580,21 +654,27 @@
 
   function onDown(e){
     const p = stagePos(e);
+    moved = false;
     for(let i=stageLayers.length-1;i>=0;i--){
       const b = layerBounds(stageLayers[i]);
       if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
         dragging = stageLayers[i];
+        selected = dragging;
         dragOffX = p.x - dragging.x; dragOffY = p.y - dragging.y;
         stageLayers.splice(i,1); stageLayers.push(dragging);
+        renderStage();
         e.preventDefault();
         return;
       }
     }
+    selected = null;
+    renderStage();
   }
   function onMove(e){
     if(!dragging) return;
     const p = stagePos(e);
     dragging.x = p.x - dragOffX; dragging.y = p.y - dragOffY;
+    moved = true;
     renderStage();
     e.preventDefault();
   }
@@ -609,24 +689,25 @@
   document.getElementById('addTextBtn').addEventListener('click', () => {
     const text = textInput.value.trim();
     if(!text) return;
-    stageLayers.push({ type:'text', text, x: stageCanvas.width/2, y: stageCanvas.height*0.2, size: parseInt(textSizeEl.value,10), color: textColorEl.value });
+    const layer = { type:'text', text, x: stageCanvas.width/2, y: stageCanvas.height*0.2, size: parseInt(textSizeEl.value,10), color: textColorEl.value };
+    stageLayers.push(layer);
+    selected = layer;
     textInput.value = '';
     renderStage();
   });
-  document.querySelectorAll('.emojiRow button').forEach(btn => {
+  document.querySelectorAll('.emojiGrid button').forEach(btn => {
     btn.addEventListener('click', () => {
-      stageLayers.push({ type:'emoji', char: btn.dataset.emoji, x: stageCanvas.width/2, y: stageCanvas.height*0.8, size: 48 });
+      const layer = { type:'emoji', char: btn.dataset.emoji, x: stageCanvas.width/2, y: stageCanvas.height*0.8, size: 48 };
+      stageLayers.push(layer);
+      selected = layer;
       renderStage();
     });
   });
-  document.getElementById('removeLayerBtn').addEventListener('click', () => {
-    for(let i=stageLayers.length-1;i>=0;i--){
-      if(stageLayers[i].type !== 'subject'){ stageLayers.splice(i,1); break; }
-    }
-    renderStage();
-  });
-  document.getElementById('clearLayersBtn').addEventListener('click', () => {
-    stageLayers = stageLayers.filter(l => l.type === 'subject');
+  deleteSelectedBtn.addEventListener('click', () => {
+    if(!selected) return;
+    stageLayers = stageLayers.filter(l => l !== selected);
+    if(selected.type === 'subject') subjectImg = null;
+    selected = null;
     renderStage();
   });
   document.getElementById('stageDownloadBtn').addEventListener('click', () => {
@@ -708,6 +789,7 @@ try{
       window.__cutoutProOverride = false;
     }
     if(window.__cutoutUpdateQuota) window.__cutoutUpdateQuota();
+    if(window.__cutoutOnAuthChange) window.__cutoutOnAuthChange(user);
   });
 
   window.__cutoutSyncDownload = async function(){
