@@ -102,9 +102,26 @@
   #deleteSelectedBtn{ position:absolute; top:16px; right:16px; display:none; }
   .editorLockOverlay{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(3px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:20px; z-index:4; }
   .editorLockOverlay p{ max-width:38ch; color:var(--sub); margin:0; font-size:14px; }
+
+  .adBanner{ display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(90deg, var(--accent), #ff8a5c); color:#fff; padding:10px 20px; font-size:13px; font-weight:600; flex-wrap:wrap; text-align:center; }
+  .adBanner button{ background:#fff; color:var(--accent); border:none; padding:6px 14px; border-radius:20px; font-size:12px; }
+  .adBanner .closeAd{ background:transparent; color:#fff; border:none; padding:0 4px; font-weight:700; font-size:15px; }
+  .adModalBg{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:30; display:none; align-items:center; justify-content:center; padding:20px; }
+  .adModalBg.show{ display:flex; }
+  .adModal{ background:var(--panel); border-radius:18px; padding:30px; max-width:420px; width:100%; text-align:center; }
+  .adModal h2{ margin:6px 0 8px; font-size:22px; }
+  .adModal p{ color:var(--sub); font-size:14px; line-height:1.6; margin:0 0 18px; }
+  .adModal ul{ text-align:left; color:var(--sub); font-size:13px; line-height:1.8; margin:0 0 20px; padding-left:20px; }
+  .adModal .badge{ margin-bottom:2px; }
 </style>
 </head>
 <body>
+
+<div class="adBanner" id="adBanner">
+  <span>🚀 Go Pro — colored/blurred backgrounds, auto-crop, and the full editor.</span>
+  <button id="bannerUpgradeBtn">Upgrade</button>
+  <button class="closeAd" id="bannerCloseBtn">✕</button>
+</div>
 
 <header>
   <div class="brand"><span class="mark"></span><span>Cutout</span></div>
@@ -168,6 +185,7 @@
         <button class="meh" id="almostBtn">Almost</button>
         <span id="feedbackThanks" style="display:none; color:var(--sub);">Thanks — future defaults just adjusted.</span>
       </div>
+      <p class="note" id="brainIndicator" style="color:var(--sub);"></p>
     </div>
   </div>
 
@@ -256,6 +274,24 @@
 
 <footer>Images are processed in your browser and are never uploaded.</footer>
 
+<div class="adModalBg" id="adModal">
+  <div class="adModal">
+    <span class="badge">Pro</span>
+    <h2>Unlock everything Cutout can do</h2>
+    <p>Sign in and go Pro for the full toolkit — no more guessing what's locked.</p>
+    <ul>
+      <li>Colored and blurred backgrounds</li>
+      <li>Auto-crop to subject</li>
+      <li>Full text &amp; sticker editor</li>
+      <li>Unlimited downloads, synced across devices</li>
+    </ul>
+    <div class="row" style="justify-content:center;">
+      <button class="primary" id="adModalUpgradeBtn">Upgrade to Pro</button>
+      <button id="adModalCloseBtn">Maybe later</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============ CORE TOOL — works with zero setup, never depends on Firebase ============
 (function(){
@@ -282,10 +318,24 @@
   function loadFeedback(){ return JSON.parse(localStorage.getItem('cutout_feedback') || '[]'); }
   function saveFeedback(list){ localStorage.setItem('cutout_feedback', JSON.stringify(list.slice(-200))); }
   function applySmartDefaults(){
-    const list = loadFeedback().filter(f => f.rating === 'perfect').slice(-50);
-    if(list.length === 0) return;
-    thresholdEl.value = Math.round(list.reduce((s,f)=>s+f.threshold,0) / list.length);
-    featherEl.value = Math.round(list.reduce((s,f)=>s+f.feather,0) / list.length);
+    // "the brain": recent "perfect" ratings count more than old ones, so it
+    // keeps adapting instead of averaging in stale settings forever.
+    const perfects = loadFeedback().filter(f => f.rating === 'perfect').slice(-50);
+    if(perfects.length === 0) return;
+    let wT=0, wF=0, wSum=0;
+    perfects.forEach((f,i) => {
+      const weight = i + 1; // later entries (more recent) weigh more
+      wT += f.threshold * weight; wF += f.feather * weight; wSum += weight;
+    });
+    thresholdEl.value = Math.round(wT / wSum);
+    featherEl.value = Math.round(wF / wSum);
+  }
+  function updateBrainIndicator(){
+    const list = loadFeedback();
+    const el = document.getElementById('brainIndicator');
+    if(list.length === 0){ el.textContent = ''; return; }
+    const perfects = list.filter(f => f.rating === 'perfect').length;
+    el.textContent = '🧠 Learned from ' + list.length + ' rating' + (list.length===1?'':'s') + ' (' + perfects + ' perfect)';
   }
 
   const drop = document.getElementById('drop');
@@ -310,6 +360,7 @@
   let currentImg = null;
 
   applySmartDefaults();
+  updateBrainIndicator();
 
   // ---- login gating ----
   function refreshAuthGate(){
@@ -396,6 +447,41 @@
       const idx = stack.pop();
       const x = idx % w, y = (idx / w) | 0;
       seed(x+1,y); seed(x-1,y); seed(x,y+1); seed(x,y-1);
+    }
+    // second pass: find pockets fully enclosed by the subject (e.g. inside a
+    // letter P/O/D) that were never reached from the border, and remove them
+    // too if their color still matches the background.
+    const compId = new Int32Array(w*h).fill(-1);
+    let comp = 0;
+    for(let start=0; start<w*h; start++){
+      if(mask[start] === 1 || compId[start] !== -1) continue;
+      const pix = [start];
+      compId[start] = comp;
+      let touchesBorder = false, sr=0, sg=0, sb=0;
+      let head = 0;
+      while(head < pix.length){
+        const idx = pix[head++];
+        const x = idx % w, y = (idx / w) | 0;
+        const i = idx*4; sr+=data[i]; sg+=data[i+1]; sb+=data[i+2];
+        if(x===0||y===0||x===w-1||y===h-1) touchesBorder = true;
+        const cand = [idx-1, idx+1, idx-w, idx+w];
+        const cx = [x-1, x+1, x, x];
+        const cy = [y, y, y-1, y+1];
+        for(let k=0;k<4;k++){
+          if(cx[k]<0||cx[k]>=w||cy[k]<0||cy[k]>=h) continue;
+          const nidx = cand[k];
+          if(mask[nidx] === 1 || compId[nidx] !== -1) continue;
+          compId[nidx] = comp; pix.push(nidx);
+        }
+      }
+      if(!touchesBorder){
+        const n2 = pix.length;
+        const dr = sr/n2-br, dg = sg/n2-bg, db = sb/n2-bb;
+        if(Math.sqrt(dr*dr+dg*dg+db*db) < threshold*1.6){
+          for(const idx of pix) mask[idx] = 1;
+        }
+      }
+      comp++;
     }
     return mask;
   }
@@ -531,7 +617,24 @@
     btn.classList.add('active');
     otherBtn.classList.remove('active');
     feedbackThanks.style.display = 'inline';
-    if(rating === 'perfect') applySmartDefaults();
+    updateBrainIndicator();
+    if(rating === 'perfect'){
+      applySmartDefaults();
+    } else {
+      // "almost" — the brain tries a nearby setting instead of just logging the click.
+      const perfects = list.filter(f => f.rating === 'perfect').slice(-20);
+      let targetT = parseInt(thresholdEl.value,10), targetF = parseInt(featherEl.value,10);
+      if(perfects.length){
+        targetT = Math.round(perfects.reduce((s,f)=>s+f.threshold,0)/perfects.length);
+        targetF = Math.round(perfects.reduce((s,f)=>s+f.feather,0)/perfects.length);
+      } else {
+        targetT = targetT + (targetT > 60 ? -15 : 15);
+        targetF = Math.min(30, targetF + 4);
+      }
+      thresholdEl.value = Math.round((parseInt(thresholdEl.value,10) + targetT) / 2);
+      featherEl.value = Math.round((parseInt(featherEl.value,10) + targetF) / 2);
+      process();
+    }
     if(window.__cutoutSyncFeedback) window.__cutoutSyncFeedback(rating, parseInt(thresholdEl.value,10), parseInt(featherEl.value,10));
   }
   perfectBtn.addEventListener('click', () => sendFeedback('perfect', perfectBtn, almostBtn));
@@ -554,6 +657,7 @@
   let stageLayers = [];
   let subjectImg = null;
   let dragging = null, selected = null, dragOffX = 0, dragOffY = 0, moved = false;
+  let resizing = null, resizeStartDist = 0, resizeStartW = 0, resizeStartH = 0, resizeStartSize = 0;
 
   document.querySelectorAll('.toolBtn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -629,9 +733,16 @@
         sctx2.lineWidth = 2;
         sctx2.strokeRect(b.x-4, b.y-4, b.w+8, b.h+8);
         sctx2.restore();
+        sctx2.fillStyle = '#ff3d68';
+        sctx2.fillRect(b.x+b.w+4-7, b.y+b.h+4-7, 14, 14);
       }
     });
     deleteSelectedBtn.style.display = selected ? 'inline-block' : 'none';
+  }
+
+  function handlePos(l){
+    const b = layerBounds(l);
+    return { x: b.x+b.w+4, y: b.y+b.h+4 };
   }
 
   function layerBounds(l){
@@ -655,6 +766,17 @@
   function onDown(e){
     const p = stagePos(e);
     moved = false;
+    if(selected){
+      const hp = handlePos(selected);
+      if(Math.abs(p.x-hp.x) < 12 && Math.abs(p.y-hp.y) < 12){
+        resizing = selected;
+        const cx = selected.x, cy = selected.y;
+        resizeStartDist = Math.max(10, Math.hypot(p.x-cx, p.y-cy));
+        resizeStartW = selected.w; resizeStartH = selected.h; resizeStartSize = selected.size;
+        e.preventDefault();
+        return;
+      }
+    }
     for(let i=stageLayers.length-1;i>=0;i--){
       const b = layerBounds(stageLayers[i]);
       if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
@@ -671,14 +793,27 @@
     renderStage();
   }
   function onMove(e){
-    if(!dragging) return;
     const p = stagePos(e);
+    if(resizing){
+      const dist = Math.max(10, Math.hypot(p.x-resizing.x, p.y-resizing.y));
+      const ratio = dist / resizeStartDist;
+      if(resizing.type === 'subject'){
+        resizing.w = Math.max(20, resizeStartW * ratio);
+        resizing.h = Math.max(20, resizeStartH * ratio);
+      } else {
+        resizing.size = Math.max(10, Math.min(160, resizeStartSize * ratio));
+      }
+      renderStage();
+      e.preventDefault();
+      return;
+    }
+    if(!dragging) return;
     dragging.x = p.x - dragOffX; dragging.y = p.y - dragOffY;
     moved = true;
     renderStage();
     e.preventDefault();
   }
-  function onUp(){ dragging = null; }
+  function onUp(){ dragging = null; resizing = null; }
   stageCanvas.addEventListener('mousedown', onDown);
   stageCanvas.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
@@ -716,6 +851,25 @@
     link.href = stageCanvas.toDataURL('image/png');
     link.click();
   });
+
+  // ---- Pro promotion: banner + startup modal ----
+  const proPitch = 'Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.';
+  const adBanner = document.getElementById('adBanner');
+  const adModal = document.getElementById('adModal');
+  if(sessionStorage.getItem('cutout_banner_dismissed')) adBanner.style.display = 'none';
+  document.getElementById('bannerCloseBtn').addEventListener('click', () => {
+    adBanner.style.display = 'none';
+    sessionStorage.setItem('cutout_banner_dismissed', '1');
+  });
+  document.getElementById('bannerUpgradeBtn').addEventListener('click', () => alert(proPitch));
+  document.getElementById('adModalUpgradeBtn').addEventListener('click', () => alert(proPitch));
+  document.getElementById('adModalCloseBtn').addEventListener('click', () => adModal.classList.remove('show'));
+  if(!sessionStorage.getItem('cutout_modal_shown') && !isPro()){
+    setTimeout(() => {
+      adModal.classList.add('show');
+      sessionStorage.setItem('cutout_modal_shown', '1');
+    }, 1200);
+  }
 })();
 </script>
 
