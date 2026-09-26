@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cutout — background remover</title>
+<!--
+  SETUP (before deploying):
+  1. Create a Firebase project at https://console.firebase.google.com
+  2. Enable Authentication > Sign-in method > Google
+  3. Enable Firestore Database (start in production mode)
+  4. Paste your web app config into `firebaseConfig` below (Project settings > your apps > SDK setup)
+  5. Firestore rules (Firestore > Rules), paste and publish:
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /users/{uid} {
+           allow read, write: if request.auth != null && request.auth.uid == uid;
+         }
+         match /feedback/{doc} {
+           allow create: if request.auth != null;
+           allow read: if true;
+         }
+       }
+     }
+
+  6. To flip a user to Pro after a real payment (e.g. Stripe), set their
+     users/{uid} document field `plan` to "pro" — do this from a server/webhook,
+     never from client code, or anyone could set it themselves.
+-->
+<style>
+  :root{
+    --bg:#f4f5f3; --panel:#ffffff; --ink:#15171a; --sub:#5c6167;
+    --line:#dfe2df; --accent:#ff3d68; --accent-ink:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; }
+  }
+  :root[data-theme="dark"]{ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header{ display:flex; align-items:center; justify-content:space-between; padding:18px 26px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; flex-wrap:wrap; gap:10px; }
+  .brand{ display:flex; align-items:baseline; gap:8px; }
+  .brand .mark{ width:14px; height:14px; background:var(--accent); border-radius:3px; display:inline-block; transform:rotate(45deg);}
+  .brand span{ font-size:19px; font-weight:700; letter-spacing:-0.02em; }
+  .headerRight{ display:flex; align-items:center; gap:14px; font-size:13px; color:var(--sub); }
+  #signInBtn, #signOutBtn{ font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:8px 14px; font-weight:600; font-size:13px; }
+  main{ max-width:960px; margin:0 auto; padding:36px 22px 80px; }
+  h1{ font-size:clamp(26px,4vw,40px); line-height:1.1; letter-spacing:-0.02em; margin:0 0 10px; }
+  .lede{ color:var(--sub); font-size:16px; max-width:58ch; margin:0 0 28px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; }
+  .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; }
+  .drop:hover, .drop.drag{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
+  .drop p{ margin:0; color:var(--sub); font-size:14px; }
+  .drop strong{ color:var(--ink); font-size:16px; }
+  input[type=file]{ display:none; }
+  .workspace{ display:none; } .workspace.active{ display:block; }
+  .canvases{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  @media (max-width:640px){ .canvases{ grid-template-columns:1fr; } }
+  .frame{ border:1px solid var(--line); border-radius:10px; overflow:hidden; position:relative; }
+  .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
+  .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+  canvas{ display:block; width:100%; height:auto; }
+  .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:16px; }
+  .control{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); min-width:150px; }
+  input[type=range]{ accent-color:var(--accent); }
+  select, input[type=color]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; }
+  button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; }
+  button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  button.good{ border-color:#1a8a5f; color:#1a8a5f; }
+  button.meh{ border-color:#c98a12; color:#c98a12; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .note{ font-size:13px; color:var(--accent); margin-top:10px; }
+  .feedbackRow{ display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .feedbackRow span{ font-size:13px; color:var(--sub); }
+  .plans{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px; }
+  @media (max-width:640px){ .plans{ grid-template-columns:1fr; } }
+  .plan{ border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); }
+  .plan.pro{ border-color:var(--accent); }
+  .plan h3{ margin:0 0 4px; font-size:16px; }
+  .plan .price{ font-size:26px; font-weight:700; margin:6px 0 12px; }
+  .plan .price small{ font-size:12px; font-weight:500; color:var(--sub); }
+  .plan ul{ margin:0 0 14px; padding-left:18px; color:var(--sub); font-size:13px; line-height:1.7; }
+  .badge{ display:inline-block; font-size:11px; color:var(--accent); border:1px solid var(--accent); border-radius:20px; padding:2px 9px; margin-bottom:6px; }
+  footer{ text-align:center; color:var(--sub); font-size:12px; padding:20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="mark"></span><span>Cutout</span></div>
+  <div class="headerRight">
+    <span id="quotaLabel"></span>
+    <button id="signInBtn">Sign in with Google</button>
+    <button id="signOutBtn" style="display:none;">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <h1>Remove any background in one click</h1>
+  <p class="lede">Drop a photo with a plain background. Adjust sensitivity, pick what replaces the background, and rate the result so the defaults keep improving.</p>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <p><strong>Click to upload</strong> or drag an image here</p>
+      <p style="margin-top:6px;">Works best on solid or simple backgrounds</p>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspace">
+      <div class="canvases">
+        <div class="frame"><span>Original</span><canvas id="srcCanvas"></canvas></div>
+        <div class="frame checker"><span>Cutout</span><canvas id="outCanvas"></canvas></div>
+      </div>
+      <div class="controls">
+        <div class="control">Sensitivity
+          <input type="range" id="threshold" min="5" max="120" value="38">
+        </div>
+        <div class="control">Edge softness
+          <input type="range" id="feather" min="0" max="30" value="8">
+        </div>
+        <div class="control">Background
+          <select id="bgMode">
+            <option value="transparent">Transparent</option>
+            <option value="color">Solid color</option>
+            <option value="blur">Blurred original</option>
+          </select>
+        </div>
+        <div class="control" id="colorWrap" style="display:none;">Color
+          <input type="color" id="bgColor" value="#ffffff">
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" id="downloadBtn">Download PNG</button>
+        <button id="resetBtn">Start over</button>
+      </div>
+      <p class="note" id="lockedNote" style="display:none;">You've used today's free cutouts. Upgrade to Pro for unlimited downloads.</p>
+      <div class="feedbackRow">
+        <span>How's this cutout?</span>
+        <button class="good" id="perfectBtn">🙂 Perfect</button>
+        <button class="meh" id="almostBtn">😐 Almost</button>
+        <span id="feedbackThanks" style="display:none; color:var(--sub);">Thanks — this helps tune future defaults.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">Plans</h3>
+    <div class="plans">
+      <div class="plan">
+        <span class="badge">Free</span>
+        <h3>Casual</h3>
+        <div class="price">$0</div>
+        <ul>
+          <li>3 downloads per day</li>
+          <li>All background modes</li>
+          <li>Feedback tuning included</li>
+        </ul>
+        <button disabled>Current plan</button>
+      </div>
+      <div class="plan pro">
+        <span class="badge">Pro</span>
+        <h3>Unlimited</h3>
+        <div class="price">$9<small>/month</small></div>
+        <ul>
+          <li>Unlimited downloads</li>
+          <li>Synced across devices</li>
+          <li>Priority support</li>
+        </ul>
+        <button class="primary" id="upgradeBtn">Upgrade</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Images are processed in your browser and are never uploaded.</footer>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc,
+    query, where, orderBy, limit, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // --- 1. PASTE YOUR FIREBASE CONFIG HERE ---
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  const DAILY_LIMIT = 3;
+  const today = new Date().toISOString().slice(0,10);
+  let currentUser = null;
+  let plan = "free";
+
+  const quotaLabel = document.getElementById('quotaLabel');
+  const signInBtn = document.getElementById('signInBtn');
+  const signOutBtn = document.getElementById('signOutBtn');
+
+  signInBtn.addEventListener('click', () => signInWithPopup(auth, provider).catch(console.error));
+  signOutBtn.addEventListener('click', () => signOut(auth));
+
+  function localUsage(){
+    let u = JSON.parse(localStorage.getItem('cutout_usage') || '{}');
+    if(u.date !== today){ u = { date: today, count: 0 }; }
+    return u;
+  }
+  function saveLocalUsage(u){ localStorage.setItem('cutout_usage', JSON.stringify(u)); }
+
+  async function refreshQuotaLabel(){
+    if(currentUser){
+      const ref = doc(db, 'users', currentUser.uid);
+      const snap = await getDoc(ref);
+      const data = snap.exists() ? snap.data() : { plan: 'free', usageDate: today, usageCount: 0 };
+      plan = data.plan || 'free';
+      const count = data.usageDate === today ? (data.usageCount || 0) : 0;
+      quotaLabel.textContent = plan === 'pro'
+        ? 'Pro — unlimited'
+        : Math.max(0, DAILY_LIMIT - count) + ' free cutouts left today';
+    } else {
+      plan = 'free';
+      const u = localUsage();
+      quotaLabel.textContent = Math.max(0, DAILY_LIMIT - u.count) + ' free cutouts left today (sign in to sync)';
+    }
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    signInBtn.style.display = user ? 'none' : 'inline-block';
+    signOutBtn.style.display = user ? 'inline-block' : 'none';
+    if(user){
+      const ref = doc(db, 'users', user.uid);
+      const snap = await getDoc(ref);
+      if(!snap.exists()){
+        await setDoc(ref, { plan: 'free', usageDate: today, usageCount: 0, createdAt: serverTimestamp() });
+      }
+    }
+    refreshQuotaLabel();
+  });
+  refreshQuotaLabel();
+
+  async function canDownload(){
+    if(currentUser){
+      const ref = doc(db, 'users', currentUser.uid);
+      const snap = await getDoc(ref);
+      const data = snap.data();
+      if(data.plan === 'pro') return true;
+      const count = data.usageDate === today ? (data.usageCount || 0) : 0;
+      return count < DAILY_LIMIT;
+    } else {
+      return localUsage().count < DAILY_LIMIT;
+    }
+  }
+  async function recordDownload(){
+    if(currentUser){
+      const ref = doc(db, 'users', currentUser.uid);
+      const snap = await getDoc(ref);
+      const data = snap.data();
+      const count = data.usageDate === today ? (data.usageCount || 0) + 1 : 1;
+      await updateDoc(ref, { usageDate: today, usageCount: count });
+    } else {
+      const u = localUsage(); u.count += 1; saveLocalUsage(u);
+    }
+    refreshQuotaLabel();
+  }
+
+  // --- adaptive defaults from crowd feedback ---
+  async function loadSmartDefaults(){
+    try{
+      const q = query(collection(db, 'feedback'), where('rating','==','perfect'), orderBy('ts','desc'), limit(50));
+      const snap = await getDocs(q);
+      if(snap.empty) return;
+      let t=0, f=0, n=0;
+      snap.forEach(d => { const v = d.data(); t += v.threshold; f += v.feather; n++; });
+      if(n > 0){
+        thresholdEl.value = Math.round(t/n);
+        featherEl.value = Math.round(f/n);
+      }
+    } catch(e){ console.warn('Could not load smart defaults yet', e); }
+  }
+
+  // --- image processing ---
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('fileInput');
+  const workspace = document.getElementById('workspace');
+  const srcCanvas = document.getElementById('srcCanvas');
+  const outCanvas = document.getElementById('outCanvas');
+  const thresholdEl = document.getElementById('threshold');
+  const featherEl = document.getElementById('feather');
+  const bgModeEl = document.getElementById('bgMode');
+  const bgColorEl = document.getElementById('bgColor');
+  const colorWrap = document.getElementById('colorWrap');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const lockedNote = document.getElementById('lockedNote');
+  const perfectBtn = document.getElementById('perfectBtn');
+  const almostBtn = document.getElementById('almostBtn');
+  const feedbackThanks = document.getElementById('feedbackThanks');
+  let currentImg = null;
+  let lastAlphaMap = null;
+
+  loadSmartDefaults();
+
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+  bgModeEl.addEventListener('change', () => { colorWrap.style.display = bgModeEl.value === 'color' ? 'flex' : 'none'; process(); });
+  bgColorEl.addEventListener('input', process);
+
+  function loadFile(file){
+    if(!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => { currentImg = img; drawWorkspace(img); feedbackThanks.style.display='none'; };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function drawWorkspace(img){
+    workspace.classList.add('active');
+    const maxW = 480;
+    const scale = Math.min(1, maxW / img.width);
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    [srcCanvas, outCanvas].forEach(c => { c.width = w; c.height = h; });
+    srcCanvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    process();
+  }
+
+  function process(){
+    if(!currentImg) return;
+    const w = srcCanvas.width, h = srcCanvas.height;
+    const sctx = srcCanvas.getContext('2d');
+    const octx = outCanvas.getContext('2d');
+    const imgData = sctx.getImageData(0, 0, w, h);
+    const data = new Uint8ClampedArray(imgData.data);
+
+    const corners = [[0,0],[w-1,0],[0,h-1],[w-1,h-1]];
+    let r=0,g=0,b=0;
+    corners.forEach(([x,y]) => { const i=(y*w+x)*4; r+=data[i]; g+=data[i+1]; b+=data[i+2]; });
+    r/=4; g/=4; b/=4;
+
+    const threshold = parseInt(thresholdEl.value, 10);
+    const feather = parseInt(featherEl.value, 10);
+    const alpha = new Float32Array(w*h);
+
+    for(let p=0, i=0; i<data.length; i+=4, p++){
+      const dr=data[i]-r, dg=data[i+1]-g, db=data[i+2]-b;
+      const dist = Math.sqrt(dr*dr+dg*dg+db*db);
+      let a = 255;
+      if(dist < threshold) a = 0;
+      else if(feather > 0 && dist < threshold+feather) a = Math.round(255*(dist-threshold)/feather);
+      alpha[p] = a;
+      data[i+3] = a;
+    }
+    lastAlphaMap = { alpha, w, h };
+
+    const mode = bgModeEl.value;
+    if(mode === 'transparent'){
+      octx.clearRect(0,0,w,h);
+      octx.putImageData(new ImageData(data, w, h), 0, 0);
+    } else if(mode === 'color'){
+      octx.fillStyle = bgColorEl.value;
+      octx.fillRect(0,0,w,h);
+      octx.putImageData(new ImageData(data, w, h), 0, 0);
+    } else if(mode === 'blur'){
+      octx.clearRect(0,0,w,h);
+      octx.filter = 'blur(10px)';
+      octx.drawImage(srcCanvas, 0, 0);
+      octx.filter = 'none';
+      octx.putImageData(new ImageData(data, w, h), 0, 0);
+    }
+  }
+
+  thresholdEl.addEventListener('input', process);
+  featherEl.addEventListener('input', process);
+
+  downloadBtn.addEventListener('click', async () => {
+    if(!(await canDownload())){ lockedNote.style.display = 'block'; return; }
+    lockedNote.style.display = 'none';
+    await recordDownload();
+    const link = document.createElement('a');
+    link.download = 'cutout.png';
+    link.href = outCanvas.toDataURL('image/png');
+    link.click();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    workspace.classList.remove('active');
+    fileInput.value = '';
+    currentImg = null;
+  });
+
+  async function sendFeedback(rating){
+    try{
+      await addDoc(collection(db, 'feedback'), {
+        rating,
+        threshold: parseInt(thresholdEl.value,10),
+        feather: parseInt(featherEl.value,10),
+        uid: currentUser ? currentUser.uid : null,
+        ts: serverTimestamp()
+      });
+      feedbackThanks.style.display = 'inline';
+      if(rating === 'perfect') loadSmartDefaults();
+    } catch(e){ console.warn('Feedback not saved — check Firestore rules', e); }
+  }
+  perfectBtn.addEventListener('click', () => sendFeedback('perfect'));
+  almostBtn.addEventListener('click', () => sendFeedback('almost'));
+
+  document.getElementById('upgradeBtn').addEventListener('click', () => {
+    alert('Connect a real payment provider (e.g. Stripe Checkout) here, then have its webhook set this user\'s plan to "pro" in Firestore.');
+  });
+</script>
+</body>
+</html>
