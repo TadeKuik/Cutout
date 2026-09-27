@@ -27,23 +27,28 @@
   :root[data-theme="dark"]{ --bg:#131417; --panel:#1c1e22; --ink:#f2f3f1; --sub:#a3a8ad; --line:#2c2f34; --railbg:#17181b; }
   *{box-sizing:border-box;}
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  header{ display:flex; align-items:center; justify-content:space-between; padding:18px 26px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; flex-wrap:wrap; gap:10px; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  header{ display:flex; align-items:center; justify-content:space-between; padding:18px 26px; border-bottom:1px solid var(--line); position:sticky; top:0; background:color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter:blur(10px); z-index:5; flex-wrap:wrap; gap:10px; }
   .brand{ display:flex; align-items:baseline; gap:8px; }
-  .brand .mark{ width:14px; height:14px; background:var(--accent); border-radius:3px; display:inline-block; transform:rotate(45deg);}
-  .brand span{ font-size:19px; font-weight:700; letter-spacing:-0.02em; }
+  .brand .mark{ width:14px; height:14px; background:linear-gradient(135deg, var(--accent), #ff8a5c); border-radius:4px; display:inline-block; transform:rotate(45deg); box-shadow:0 2px 8px rgba(255,61,104,.35); }
+  .brand span{ font-size:19px; font-weight:800; letter-spacing:-0.03em; }
   .headerRight{ display:flex; align-items:center; gap:12px; font-size:13px; color:var(--sub); }
   #signInBtn, #signOutBtn{ font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:8px 14px; font-weight:600; font-size:13px; }
   #authError{ color:var(--accent); font-size:12px; display:none; }
   main{ max-width:960px; margin:0 auto; padding:36px 22px 80px; }
-  h1{ font-size:clamp(26px,4vw,40px); line-height:1.1; letter-spacing:-0.02em; margin:0 0 10px; }
-  .lede{ color:var(--sub); font-size:16px; max-width:58ch; margin:0 0 28px; }
-  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:22px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
-  .panel h3{ margin-top:0; }
+  .eyebrow{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent); padding:5px 12px; border-radius:20px; margin-bottom:16px; letter-spacing:.02em; }
+  h1{ font-size:clamp(28px,4.4vw,44px); line-height:1.08; letter-spacing:-0.03em; margin:0 0 12px; }
+  h1 .accentWord{ background:linear-gradient(100deg, var(--accent), #ff8a5c); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lede{ color:var(--sub); font-size:16.5px; max-width:58ch; margin:0 0 28px; line-height:1.55; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; margin-bottom:22px; box-shadow:0 4px 16px rgba(0,0,0,.05); }
+  .panel h3{ margin-top:0; font-size:15px; letter-spacing:-0.01em; }
   .reveal{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
   .reveal.in-view{ opacity:1; transform:translateY(0); }
   .drop{ border:2px dashed var(--line); border-radius:12px; padding:40px 18px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s, transform .15s; }
   .drop:hover{ transform:translateY(-2px); }
   .drop:hover, .drop.drag{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, transparent); }
+  .drop svg{ width:34px; height:34px; color:var(--sub); margin-bottom:10px; transition:color .15s, transform .15s; }
+  .drop:hover svg{ color:var(--accent); transform:translateY(-2px); }
   .drop p{ margin:0; color:var(--sub); font-size:14px; }
   .drop strong{ color:var(--ink); font-size:16px; }
   input[type=file]{ display:none; }
@@ -54,12 +59,16 @@
   @media (max-width:640px){ .canvases{ grid-template-columns:1fr; } }
   .frame{ border:1px solid var(--line); border-radius:10px; overflow:hidden; position:relative; }
   .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
+  .frame .processing{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:8px; background:color-mix(in srgb, var(--bg) 75%, transparent); backdrop-filter:blur(1px); font-size:12px; color:var(--sub); font-weight:600; }
+  .frame .processing.show{ display:flex; }
+  .spinner{ width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
   .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
   canvas{ display:block; width:100%; height:auto; }
   #stageCanvas{ cursor:grab; touch-action:none; }
   #stageCanvas:active{ cursor:grabbing; }
   .controls{ display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; margin-bottom:8px; }
-  .control{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); min-width:150px; }
+  .control{ display:flex; flex-direction:column; gap:6px; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:var(--sub); min-width:150px; }
   .checkctrl{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sub); }
   input[type=range]{ accent-color:var(--accent); }
   select, input[type=color], input[type=text]{ font:inherit; padding:6px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
@@ -68,7 +77,8 @@
   button{ font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:10px 16px; font-weight:600; font-size:14px; transition:transform .1s, box-shadow .15s, background .15s; }
   button:hover{ box-shadow:0 2px 8px rgba(0,0,0,.08); }
   button:active{ transform:scale(0.98); }
-  button.primary{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  button.primary{ background:linear-gradient(135deg, var(--accent), #ff8a5c); color:var(--accent-ink); border-color:transparent; box-shadow:0 4px 14px rgba(255,61,104,.28); }
+  button.primary:hover{ box-shadow:0 6px 18px rgba(255,61,104,.38); }
   button.active{ background:var(--accent); color:#fff; }
   #downloadBtn{ width:100%; padding:18px; font-size:18px; border-radius:12px; }
   button.good{ border-color:#1a8a5f; color:#1a8a5f; }
@@ -89,7 +99,9 @@
   .plan h3{ margin:0 0 4px; font-size:16px; }
   .plan .price{ font-size:26px; font-weight:700; margin:6px 0 12px; }
   .plan .price small{ font-size:12px; font-weight:500; color:var(--sub); }
-  .plan ul{ margin:0 0 14px; padding-left:18px; color:var(--sub); font-size:13px; line-height:1.7; }
+  .plan ul{ margin:0 0 14px; padding-left:0; color:var(--sub); font-size:13px; line-height:1.7; list-style:none; }
+  .plan ul li{ position:relative; padding-left:22px; }
+  .plan ul li::before{ content:"✓"; position:absolute; left:0; color:var(--accent); font-weight:700; }
   .badge{ display:inline-block; font-size:11px; color:var(--accent); border:1px solid var(--accent); border-radius:20px; padding:2px 9px; margin-bottom:6px; }
   footer{ text-align:center; color:var(--sub); font-size:12px; padding:20px; }
 
@@ -112,11 +124,13 @@
   .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; background:var(--railbg); }
   #stageCanvas{ max-width:100%; border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.16), 0 0 0 1px var(--line); }
   .canvasHint{ font-size:12px; color:var(--sub); margin-top:14px; }
-  #deleteSelectedBtn{ position:absolute; top:20px; right:20px; display:none; font-size:13px; padding:8px 14px; }
+  #deleteSelectedBtn{ display:none; font-size:13px; padding:8px 14px; }
+  .layerActions{ position:absolute; top:20px; right:20px; display:flex; gap:8px; }
+  .layerActions button{ font-size:13px; padding:8px 14px; }
   .editorLockOverlay{ position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(3px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:20px; z-index:4; }
   .editorLockOverlay p{ max-width:38ch; color:var(--sub); margin:0; font-size:14px; }
 
-  .adBanner{ display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(90deg, var(--accent), #ff8a5c); color:#fff; padding:10px 20px; font-size:13px; font-weight:600; flex-wrap:wrap; text-align:center; animation:slideDown .5s ease; }
+  .adBanner{ display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(90deg, var(--accent), #ff8a5c); color:#fff; padding:11px 20px; font-size:13px; font-weight:600; flex-wrap:wrap; text-align:center; animation:slideDown .5s ease; box-shadow:0 2px 10px rgba(255,61,104,.25); }
   @keyframes slideDown{ from{ transform:translateY(-100%);} to{ transform:translateY(0);} }
   .adBanner button{ background:#fff; color:var(--accent); border:none; padding:6px 14px; border-radius:20px; font-size:12px; }
   .adBanner .closeAd{ background:transparent; color:#fff; border:none; padding:0 4px; font-weight:700; font-size:15px; }
@@ -147,11 +161,13 @@
 </header>
 
 <main>
-  <h1>Remove any background in one click</h1>
+  <span class="eyebrow">✦ Free, private, in-browser</span>
+  <h1>Remove any <span class="accentWord">background</span> in one click</h1>
   <p class="lede">Drop a photo with a fairly plain background. Transparent cutouts are free for everyone. Sign in to unlock colored and blurred backgrounds, auto-crop, and the full editor.</p>
 
   <div class="panel reveal">
     <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
       <p><strong>Click to upload</strong> or drag an image here</p>
       <p style="margin-top:6px;">Works best on solid or simple backgrounds</p>
       <input type="file" id="fileInput" accept="image/*">
@@ -160,7 +176,7 @@
     <div class="workspace" id="workspace">
       <div class="canvases">
         <div class="frame"><span>Original</span><canvas id="srcCanvas"></canvas></div>
-        <div class="frame checker"><span>Cutout</span><canvas id="outCanvas"></canvas></div>
+        <div class="frame checker"><span>Cutout</span><canvas id="outCanvas"></canvas><div class="processing" id="processingOverlay"><span class="spinner"></span>Processing</div></div>
       </div>
 
       <div class="controls">
@@ -261,7 +277,10 @@
         </div>
       </div>
       <div class="canvasWrap">
-        <button id="deleteSelectedBtn">Delete selected</button>
+        <div class="layerActions" id="layerActions" style="display:none;">
+          <button id="duplicateBtn">Duplicate</button>
+          <button id="deleteSelectedBtn">Delete</button>
+        </div>
         <canvas id="stageCanvas" width="480" height="480"></canvas>
         <p class="canvasHint">Click a layer to select. Drag to move, the corner handle to resize, the top handle to rotate.</p>
       </div>
@@ -383,6 +402,7 @@
   const perfectBtn = document.getElementById('perfectBtn');
   const almostBtn = document.getElementById('almostBtn');
   const feedbackThanks = document.getElementById('feedbackThanks');
+  const processingOverlay = document.getElementById('processingOverlay');
   const eraseToggleBtn = document.getElementById('eraseToggleBtn');
   const eraseBrush = document.getElementById('eraseBrush');
   const resetEraseBtn = document.getElementById('resetEraseBtn');
@@ -584,6 +604,12 @@
 
   function process(){
     if(!currentImg) return;
+    processingOverlay.classList.add('show');
+    requestAnimationFrame(() => setTimeout(doProcess, 0));
+  }
+
+  function doProcess(){
+    if(!currentImg) return;
     const w = srcCanvas.width, h = srcCanvas.height;
     const sctx = srcCanvas.getContext('2d');
     const imgData = sctx.getImageData(0, 0, w, h);
@@ -613,6 +639,7 @@
     lastAlpha = alpha; lastData = data; lastW = w; lastH = h;
     renderPreview();
     updateStageSubject();
+    processingOverlay.classList.remove('show');
   }
 
   function renderPreview(){
@@ -894,7 +921,8 @@
         sctx2.fill();
       }
     });
-    deleteSelectedBtn.style.display = selected ? 'inline-block' : 'none';
+    document.getElementById('layerActions').style.display = selected ? 'flex' : 'none';
+    document.getElementById('duplicateBtn').disabled = !selected || selected.type === 'subject';
   }
 
   function stagePos(e){
@@ -903,6 +931,15 @@
     const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
     const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
     return { x: cx*scaleX, y: cy*scaleY };
+  }
+
+  function hitTestLayer(l, p){
+    const s = layerSize(l);
+    const rot = l.rotation || 0;
+    const dx = p.x - l.x, dy = p.y - l.y;
+    const localX = dx*Math.cos(-rot) - dy*Math.sin(-rot);
+    const localY = dx*Math.sin(-rot) + dy*Math.cos(-rot);
+    return Math.abs(localX) <= s.w/2 && Math.abs(localY) <= s.h/2;
   }
 
   function onDown(e){
@@ -920,8 +957,7 @@
       }
     }
     for(let i=stageLayers.length-1;i>=0;i--){
-      const b = layerBounds(stageLayers[i]);
-      if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){
+      if(hitTestLayer(stageLayers[i], p)){
         dragging = stageLayers[i];
         selected = dragging;
         dragOffX = p.x - dragging.x; dragOffY = p.y - dragging.y;
@@ -982,6 +1018,13 @@
     stageLayers = stageLayers.filter(l => l !== selected);
     if(selected.type === 'subject') subjectImg = null;
     selected = null;
+    renderStage();
+  });
+  document.getElementById('duplicateBtn').addEventListener('click', () => {
+    if(!selected || selected.type === 'subject') return;
+    const copy = Object.assign({}, selected, { x: selected.x + 16, y: selected.y + 16 });
+    stageLayers.push(copy);
+    selected = copy;
     renderStage();
   });
   document.getElementById('stageDownloadBtn').addEventListener('click', () => {
