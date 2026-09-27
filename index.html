@@ -50,14 +50,11 @@
   .workspace{ display:none; } .workspace.active{ display:block; animation:fadeIn .4s ease; }
   @keyframes fadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
 
-  .compareWrap{ position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:10px; }
-  .compareBase{ position:relative; width:100%; }
-  .compareBase.checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
-  .compareOverlay{ position:absolute; top:0; left:0; width:50%; height:100%; overflow:hidden; border-right:2px solid #fff; }
-  .compareBase canvas{ display:block; width:100%; height:auto; }
-  .compareOverlay canvas{ display:block; width:auto; height:100%; }
-  .compareDivider{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:#fff; box-shadow:0 0 6px rgba(0,0,0,.35); pointer-events:none; }
-  .wideRange{ width:100%; accent-color:var(--accent); margin:4px 0 16px; }
+  .canvases{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  @media (max-width:640px){ .canvases{ grid-template-columns:1fr; } }
+  .frame{ border:1px solid var(--line); border-radius:10px; overflow:hidden; position:relative; }
+  .frame span{ position:absolute; top:8px; left:8px; font-size:11px; background:rgba(0,0,0,.55); color:#fff; padding:3px 8px; border-radius:20px; }
+  .checker{ background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
   canvas{ display:block; width:100%; height:auto; }
   #stageCanvas{ cursor:grab; touch-action:none; }
   #stageCanvas:active{ cursor:grabbing; }
@@ -109,11 +106,9 @@
   .toolBtn.active{ background:var(--panel); color:var(--accent); box-shadow:0 2px 6px rgba(0,0,0,.1); }
   .toolBtn.active .ic{ background:color-mix(in srgb, var(--accent) 12%, transparent); }
   .toolPanel{ background:var(--railbg); border-right:1px solid var(--line); padding:20px 18px; }
-  .toolPane{ display:flex; flex-direction:column; gap:14px; }
+  .toolPane{ flex-direction:column; gap:14px; }
+  .toolPane.shown{ display:flex; }
   .toolPane h4{ margin:0 0 4px; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); font-weight:700; }
-  .emojiGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-  .emojiGrid button{ font-size:19px; padding:10px 0; border-radius:10px; background:var(--panel); }
-  .emojiGrid button:hover{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
   .canvasWrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; background:var(--railbg); }
   #stageCanvas{ max-width:100%; border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.16), 0 0 0 1px var(--line); }
   .canvasHint{ font-size:12px; color:var(--sub); margin-top:14px; }
@@ -163,12 +158,10 @@
     </div>
 
     <div class="workspace" id="workspace">
-      <div class="compareWrap" id="compareWrap">
-        <div class="compareBase checker"><canvas id="previewCanvas"></canvas></div>
-        <div class="compareOverlay" id="compareOverlay"><canvas id="srcCanvas"></canvas></div>
-        <div class="compareDivider" id="compareDivider"></div>
+      <div class="canvases">
+        <div class="frame"><span>Original</span><canvas id="srcCanvas"></canvas></div>
+        <div class="frame checker"><span>Cutout</span><canvas id="outCanvas"></canvas></div>
       </div>
-      <input type="range" id="compareSlider" class="wideRange" min="0" max="100" value="50">
 
       <div class="controls">
         <div class="control">Sensitivity
@@ -220,7 +213,7 @@
 
   <div class="panel workspace reveal" id="editorPanel">
     <div class="editorLockOverlay" id="editorLock">
-      <p>Sign in to unlock the editor. Add text, stickers, an outline, and reposition your cutout.</p>
+      <p>Sign in to unlock the editor. Add text, an outline, and reposition or rotate your cutout.</p>
       <button class="primary" id="editorSignInBtn">Sign in with Google</button>
     </div>
     <div class="editorTop">
@@ -230,31 +223,26 @@
     <div class="editorBody">
       <div class="toolRail">
         <button class="toolBtn active" data-tool="text"><span class="ic">T</span>Text</button>
-        <button class="toolBtn" data-tool="stickers"><span class="ic">😀</span>Stickers</button>
         <button class="toolBtn" data-tool="background"><span class="ic">▦</span>Canvas</button>
       </div>
       <div class="toolPanel">
-        <div class="toolPane" data-pane="text">
+        <div class="toolPane shown" data-pane="text">
           <h4>Add text</h4>
           <input type="text" id="textInput" placeholder="Type something">
+          <div class="control">Style
+            <select id="textFont">
+              <option value="-apple-system, sans-serif">Sans</option>
+              <option value="Georgia, serif">Serif</option>
+              <option value="Menlo, Consolas, monospace">Mono</option>
+              <option value="Verdana, sans-serif">Rounded</option>
+              <option value="Impact, sans-serif">Bold display</option>
+            </select>
+          </div>
           <div class="control">Color <input type="color" id="textColor" value="#111111"></div>
           <div class="control">Size <input type="range" id="textSize" min="14" max="64" value="30"></div>
           <button class="primary" id="addTextBtn">Add text</button>
         </div>
-        <div class="toolPane" data-pane="stickers" hidden>
-          <h4>Stickers</h4>
-          <div class="emojiGrid">
-            <button data-emoji="😀">😀</button>
-            <button data-emoji="😎">😎</button>
-            <button data-emoji="❤️">❤️</button>
-            <button data-emoji="🔥">🔥</button>
-            <button data-emoji="⭐">⭐</button>
-            <button data-emoji="👍">👍</button>
-            <button data-emoji="🎉">🎉</button>
-            <button data-emoji="✨">✨</button>
-          </div>
-        </div>
-        <div class="toolPane" data-pane="background" hidden>
+        <div class="toolPane" data-pane="background">
           <h4>Canvas background</h4>
           <select id="stageBgMode">
             <option value="transparent">Transparent</option>
@@ -275,7 +263,7 @@
       <div class="canvasWrap">
         <button id="deleteSelectedBtn">Delete selected</button>
         <canvas id="stageCanvas" width="480" height="480"></canvas>
-        <p class="canvasHint">Click a layer to select, drag to move, drag its corner handle to resize</p>
+        <p class="canvasHint">Click a layer to select. Drag to move, the corner handle to resize, the top handle to rotate.</p>
       </div>
     </div>
   </div>
@@ -300,7 +288,7 @@
         <div class="price">$9<small>/month</small></div>
         <ul>
           <li>Colored and blurred backgrounds, auto-crop</li>
-          <li>Full text, sticker, and outline editor</li>
+          <li>Full text and outline editor</li>
           <li>Unlimited downloads</li>
         </ul>
         <button class="primary" id="upgradeBtn">Upgrade</button>
@@ -330,7 +318,7 @@
     <ul>
       <li>Colored and blurred backgrounds</li>
       <li>Auto-crop to subject</li>
-      <li>Full text, sticker, and outline editor</li>
+      <li>Full text and outline editor</li>
       <li>Unlimited downloads, synced across devices</li>
     </ul>
     <div class="row" style="justify-content:center;">
@@ -382,10 +370,7 @@
   const editorPanel = document.getElementById('editorPanel');
   const editorLock = document.getElementById('editorLock');
   const srcCanvas = document.getElementById('srcCanvas');
-  const previewCanvas = document.getElementById('previewCanvas');
-  const compareOverlay = document.getElementById('compareOverlay');
-  const compareDivider = document.getElementById('compareDivider');
-  const compareSlider = document.getElementById('compareSlider');
+  const outCanvas = document.getElementById('outCanvas');
   const thresholdEl = document.getElementById('threshold');
   const featherEl = document.getElementById('feather');
   const bgModeEl = document.getElementById('bgMode');
@@ -438,10 +423,6 @@
   bgColorEl.addEventListener('input', renderPreview);
   thresholdEl.addEventListener('input', process);
   featherEl.addEventListener('input', process);
-  compareSlider.addEventListener('input', () => {
-    compareOverlay.style.width = compareSlider.value + '%';
-    compareDivider.style.left = compareSlider.value + '%';
-  });
 
   function loadFile(file){
     if(!file.type.startsWith('image/')) return;
@@ -637,15 +618,14 @@
   function renderPreview(){
     if(!currentImg) return;
     const mode = signedIn ? bgModeEl.value : 'transparent';
-    previewCanvas.width = lastW; previewCanvas.height = lastH;
+    outCanvas.width = lastW; outCanvas.height = lastH;
     const imgData = composite(lastData, lastAlpha, lastW, lastH, 0, 0, lastW, lastH, mode, bgColorEl.value);
-    previewCanvas.getContext('2d').putImageData(imgData, 0, 0);
+    outCanvas.getContext('2d').putImageData(imgData, 0, 0);
   }
 
-  // ---- object eraser ----
   function previewPos(e){
-    const rect = previewCanvas.getBoundingClientRect();
-    const scaleX = previewCanvas.width / rect.width, scaleY = previewCanvas.height / rect.height;
+    const rect = outCanvas.getBoundingClientRect();
+    const scaleX = outCanvas.width / rect.width, scaleY = outCanvas.height / rect.height;
     const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
     const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
     return { x: cx*scaleX, y: cy*scaleY };
@@ -672,19 +652,18 @@
     eraseMode = !eraseMode;
     eraseToggleBtn.textContent = 'Erase mode: ' + (eraseMode ? 'On' : 'Off');
     eraseToggleBtn.classList.toggle('active', eraseMode);
-    compareOverlay.style.pointerEvents = eraseMode ? 'none' : 'auto';
-    previewCanvas.style.cursor = eraseMode ? 'crosshair' : 'default';
+    outCanvas.style.cursor = eraseMode ? 'crosshair' : 'default';
   });
   resetEraseBtn.addEventListener('click', () => {
     if(manualErase) manualErase.fill(0);
     process();
   });
-  previewCanvas.addEventListener('mousedown', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); });
-  previewCanvas.addEventListener('mousemove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); });
+  outCanvas.addEventListener('mousedown', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); });
+  outCanvas.addEventListener('mousemove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); });
   window.addEventListener('mouseup', () => { erasing = false; });
-  previewCanvas.addEventListener('touchstart', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
-  previewCanvas.addEventListener('touchmove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
-  previewCanvas.addEventListener('touchend', () => { erasing = false; });
+  outCanvas.addEventListener('touchstart', e => { if(!eraseMode) return; erasing = true; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
+  outCanvas.addEventListener('touchmove', e => { if(!eraseMode || !erasing) return; eraseAt(previewPos(e)); e.preventDefault(); }, { passive:false });
+  outCanvas.addEventListener('touchend', () => { erasing = false; });
 
   downloadBtn.addEventListener('click', () => {
     if(!currentImg || !lastAlpha) return;
@@ -767,17 +746,19 @@
   const textInput = document.getElementById('textInput');
   const textColorEl = document.getElementById('textColor');
   const textSizeEl = document.getElementById('textSize');
+  const textFontEl = document.getElementById('textFont');
   const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
   let stageLayers = [];
   let subjectImg = null;
   let dragging = null, selected = null, dragOffX = 0, dragOffY = 0;
   let resizing = null, resizeStartDist = 0, resizeStartW = 0, resizeStartH = 0, resizeStartSize = 0;
+  let rotatingLayer = null;
 
   document.querySelectorAll('.toolBtn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.toolBtn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      document.querySelectorAll('.toolPane').forEach(p => p.hidden = p.dataset.pane !== btn.dataset.tool);
+      document.querySelectorAll('.toolPane').forEach(p => p.classList.toggle('shown', p.dataset.pane === btn.dataset.tool));
     });
   });
 
@@ -815,7 +796,7 @@
       const scale = Math.min(1, (stageCanvas.width*0.6)/im.width, (stageCanvas.height*0.6)/im.height);
       const dw = im.width*scale, dh = im.height*scale;
       if(existing){ existing.w = dw; existing.h = dh; }
-      else { stageLayers.unshift({ type:'subject', x: stageCanvas.width/2, y: stageCanvas.height/2, w: dw, h: dh }); }
+      else { stageLayers.unshift({ type:'subject', x: stageCanvas.width/2, y: stageCanvas.height/2, w: dw, h: dh, rotation: 0 }); }
       renderStage();
     };
     im.src = tmp.toDataURL('image/png');
@@ -837,6 +818,27 @@
     }
   }
 
+  function layerSize(l){
+    if(l.type === 'subject') return { w:l.w, h:l.h };
+    sctx2.font = l.size + 'px ' + (l.font || '-apple-system, sans-serif');
+    return { w: sctx2.measureText(l.text).width, h: l.size };
+  }
+  function layerBounds(l){
+    const s = layerSize(l);
+    return { x:l.x-s.w/2, y:l.y-s.h/2, w:s.w, h:s.h };
+  }
+  function rotatePoint(cx, cy, localX, localY, rot){
+    return { x: cx + localX*Math.cos(rot) - localY*Math.sin(rot), y: cy + localX*Math.sin(rot) + localY*Math.cos(rot) };
+  }
+  function resizeHandlePos(l){
+    const s = layerSize(l);
+    return rotatePoint(l.x, l.y, s.w/2+4, s.h/2+4, l.rotation||0);
+  }
+  function rotateHandlePos(l){
+    const s = layerSize(l);
+    return rotatePoint(l.x, l.y, 0, -(s.h/2+24), l.rotation||0);
+  }
+
   function renderStage(){
     sctx2.clearRect(0,0,stageCanvas.width,stageCanvas.height);
     if(stageBgModeEl.value === 'color'){
@@ -844,50 +846,55 @@
       sctx2.fillRect(0,0,stageCanvas.width,stageCanvas.height);
     }
     stageLayers.forEach(l => {
+      const rot = l.rotation || 0;
       if(l.type === 'subject' && subjectImg){
+        sctx2.save();
+        sctx2.translate(l.x, l.y);
+        sctx2.rotate(rot);
         if(outlineToggle.checked){
-          drawOutline(sctx2, subjectImg, l.x-l.w/2, l.y-l.h/2, l.w, l.h, outlineColor.value, parseInt(outlineThickness.value,10));
+          drawOutline(sctx2, subjectImg, -l.w/2, -l.h/2, l.w, l.h, outlineColor.value, parseInt(outlineThickness.value,10));
         }
-        sctx2.drawImage(subjectImg, l.x-l.w/2, l.y-l.h/2, l.w, l.h);
+        sctx2.drawImage(subjectImg, -l.w/2, -l.h/2, l.w, l.h);
+        sctx2.restore();
       } else if(l.type === 'text'){
-        sctx2.font = 'bold ' + l.size + 'px -apple-system, sans-serif';
+        sctx2.save();
+        sctx2.translate(l.x, l.y);
+        sctx2.rotate(rot);
+        sctx2.font = l.size + 'px ' + (l.font || '-apple-system, sans-serif');
         sctx2.fillStyle = l.color;
         sctx2.textBaseline = 'middle';
         sctx2.textAlign = 'center';
-        sctx2.fillText(l.text, l.x, l.y);
-      } else if(l.type === 'emoji'){
-        sctx2.font = l.size + 'px serif';
-        sctx2.textBaseline = 'middle';
-        sctx2.textAlign = 'center';
-        sctx2.fillText(l.char, l.x, l.y);
+        sctx2.fillText(l.text, 0, 0);
+        sctx2.restore();
       }
       if(l === selected){
-        const b = layerBounds(l);
+        const s = layerSize(l);
+        const corners = [
+          rotatePoint(l.x,l.y,-(s.w/2+4),-(s.h/2+4),rot),
+          rotatePoint(l.x,l.y, (s.w/2+4),-(s.h/2+4),rot),
+          rotatePoint(l.x,l.y, (s.w/2+4), (s.h/2+4),rot),
+          rotatePoint(l.x,l.y,-(s.w/2+4), (s.h/2+4),rot)
+        ];
         sctx2.save();
         sctx2.strokeStyle = '#ff3d68';
         sctx2.setLineDash([6,4]);
         sctx2.lineWidth = 2;
-        sctx2.strokeRect(b.x-4, b.y-4, b.w+8, b.h+8);
+        sctx2.beginPath();
+        sctx2.moveTo(corners[0].x, corners[0].y);
+        corners.slice(1).forEach(c => sctx2.lineTo(c.x,c.y));
+        sctx2.closePath();
+        sctx2.stroke();
         sctx2.restore();
+        const rp = resizeHandlePos(l);
         sctx2.fillStyle = '#ff3d68';
-        sctx2.fillRect(b.x+b.w+4-7, b.y+b.h+4-7, 14, 14);
+        sctx2.fillRect(rp.x-7, rp.y-7, 14, 14);
+        const rotp = rotateHandlePos(l);
+        sctx2.beginPath();
+        sctx2.arc(rotp.x, rotp.y, 7, 0, Math.PI*2);
+        sctx2.fill();
       }
     });
     deleteSelectedBtn.style.display = selected ? 'inline-block' : 'none';
-  }
-
-  function layerBounds(l){
-    if(l.type === 'subject') return { x:l.x-l.w/2, y:l.y-l.h/2, w:l.w, h:l.h };
-    if(l.type === 'text'){
-      sctx2.font = 'bold ' + l.size + 'px -apple-system, sans-serif';
-      const w = sctx2.measureText(l.text).width;
-      return { x:l.x-w/2, y:l.y-l.size/2, w, h:l.size };
-    }
-    return { x:l.x-l.size/2, y:l.y-l.size/2, w:l.size, h:l.size };
-  }
-  function handlePos(l){
-    const b = layerBounds(l);
-    return { x: b.x+b.w+4, y: b.y+b.h+4 };
   }
 
   function stagePos(e){
@@ -901,8 +908,10 @@
   function onDown(e){
     const p = stagePos(e);
     if(selected){
-      const hp = handlePos(selected);
-      if(Math.abs(p.x-hp.x) < 12 && Math.abs(p.y-hp.y) < 12){
+      const rp = rotateHandlePos(selected);
+      if(Math.hypot(p.x-rp.x, p.y-rp.y) < 12){ rotatingLayer = selected; e.preventDefault(); return; }
+      const hp = resizeHandlePos(selected);
+      if(Math.hypot(p.x-hp.x, p.y-hp.y) < 12){
         resizing = selected;
         resizeStartDist = Math.max(10, Math.hypot(p.x-selected.x, p.y-selected.y));
         resizeStartW = selected.w; resizeStartH = selected.h; resizeStartSize = selected.size;
@@ -927,6 +936,12 @@
   }
   function onMove(e){
     const p = stagePos(e);
+    if(rotatingLayer){
+      rotatingLayer.rotation = Math.atan2(p.x-rotatingLayer.x, -(p.y-rotatingLayer.y));
+      renderStage();
+      e.preventDefault();
+      return;
+    }
     if(resizing){
       const dist = Math.max(10, Math.hypot(p.x-resizing.x, p.y-resizing.y));
       const ratio = dist / resizeStartDist;
@@ -945,7 +960,7 @@
     renderStage();
     e.preventDefault();
   }
-  function onUp(){ dragging = null; resizing = null; }
+  function onUp(){ dragging = null; resizing = null; rotatingLayer = null; }
   stageCanvas.addEventListener('mousedown', onDown);
   stageCanvas.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
@@ -956,19 +971,11 @@
   document.getElementById('addTextBtn').addEventListener('click', () => {
     const text = textInput.value.trim();
     if(!text) return;
-    const layer = { type:'text', text, x: stageCanvas.width/2, y: stageCanvas.height*0.2, size: parseInt(textSizeEl.value,10), color: textColorEl.value };
+    const layer = { type:'text', text, x: stageCanvas.width/2, y: stageCanvas.height*0.2, size: parseInt(textSizeEl.value,10), color: textColorEl.value, font: textFontEl.value, rotation: 0 };
     stageLayers.push(layer);
     selected = layer;
     textInput.value = '';
     renderStage();
-  });
-  document.querySelectorAll('.emojiGrid button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const layer = { type:'emoji', char: btn.dataset.emoji, x: stageCanvas.width/2, y: stageCanvas.height*0.8, size: 48 };
-      stageLayers.push(layer);
-      selected = layer;
-      renderStage();
-    });
   });
   deleteSelectedBtn.addEventListener('click', () => {
     if(!selected) return;
